@@ -338,7 +338,7 @@ docs: document v0.2 architecture and usage
 | --- | --- | --- |
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
-| v0.3 | Lenguaje natural estructurado con LLM | Pendiente |
+| v0.3 | Lenguaje natural estructurado con LLM | Propuesta documentada; no implementada |
 | v0.4 | Automatización de navegador con Playwright | Pendiente |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
@@ -371,16 +371,13 @@ Tecnología externa:
 No se incorporaron paquetes, APIs, código copiado ni servicios externos hasta
 v0.2.
 
-## 18. Próxima decisión
+## 18. Preparación de v0.3
 
-El roadmap propone v0.3 para transformar lenguaje más flexible en una acción JSON
-estructurada. Antes de implementarla se deberá comparar:
+La [propuesta de arquitectura de v0.3](V0.3_ARCHITECTURE_PROPOSAL.md) documenta el
+posible uso de un LLM como fallback del parser determinista. El modelo propondría
+solamente un intent y un destino canónico; el núcleo local validaría el esquema, la
+política y el catálogo antes de construir una `Action`.
 
-- parser determinista ampliado;
-- modelo local;
-- API de LLM;
-- validación mediante esquema;
-- costos, privacidad y comportamiento ante respuestas inválidas.
-
-Ningún modelo deberá ejecutar herramientas directamente. Su salida será una
-propuesta estructurada que deberá validar el núcleo antes de convertirla en acción.
+La propuesta no implementa v0.3 ni adopta proveedor, modelo, SDK o dependencia. Esas
+decisiones requieren revisión y autorización antes de modificar el núcleo o realizar
+llamadas externas.
