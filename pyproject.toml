@@ -1,6 +1,6 @@
 [project]
 name = "desktop-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "MVP determinista de un agente de escritorio seguro y progresivo"
 readme = "README.md"
 requires-python = ">=3.10"

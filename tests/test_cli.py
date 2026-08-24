@@ -44,7 +44,31 @@ class ProcessCommandTests(unittest.TestCase):
             ["Entendiendo comando...", "Comando no soportado todavía."],
         )
 
+    def test_processes_application_command(self) -> None:
+        output: list[str] = []
+        executor = ActionExecutor(
+            {
+                "open_application": lambda name: ToolResult(
+                    True, f"Aplicación abierta: {name}"
+                )
+            },
+            self.logger,
+        )
+
+        success = process_command(
+            "abrir calculadora", executor, self.logger, output.append
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(
+            output,
+            [
+                "Entendiendo comando...",
+                "Ejecutando open_application...",
+                "Aplicación abierta: calculator",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -14,6 +14,7 @@ class RiskLevel(str, Enum):
 
 class Intent(str, Enum):
     OPEN_URL = "OPEN_URL"
+    OPEN_APPLICATION = "OPEN_APPLICATION"
 
 
 @dataclass(frozen=True)
@@ -35,4 +36,3 @@ class Action:
 class ToolResult:
     success: bool
     message: str
-
