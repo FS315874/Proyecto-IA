@@ -5,6 +5,7 @@ from collections.abc import Callable, Sequence
 from desktop_agent.executor import ActionExecutionError, ActionExecutor
 from desktop_agent.logging_config import configure_logging
 from desktop_agent.parser import parse_command
+from desktop_agent.tools.applications import open_application
 from desktop_agent.tools.browser import open_url
 
 Output = Callable[[str], None]
@@ -28,6 +29,8 @@ def process_command(
     logger.info("Intent: %s", action.intent.value)
     if "url" in action.arguments:
         logger.info("URL: %s", action.arguments["url"])
+    if "name" in action.arguments:
+        logger.info("Application: %s", action.arguments["name"])
 
     output(f"Ejecutando {action.tool_name}...")
     try:
@@ -45,7 +48,7 @@ def _run_interactive(
     logger: logging.Logger,
     output: Output = print,
 ) -> int:
-    output("Desktop Agent v0.1 — escribí 'salir' para terminar.")
+    output("Desktop Agent v0.2 — escribí 'salir' para terminar.")
     while True:
         try:
             command = input("> ").strip()
@@ -71,11 +74,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"No se pudo crear el archivo de log: {error}", file=sys.stderr)
         return 1
 
-    executor = ActionExecutor(tools={"open_url": open_url}, logger=logger)
+    executor = ActionExecutor(
+        tools={
+            "open_url": open_url,
+            "open_application": open_application,
+        },
+        logger=logger,
+    )
 
     if arguments:
         command = " ".join(arguments)
         return 0 if process_command(command, executor, logger) else 1
 
     return _run_interactive(executor, logger)
-

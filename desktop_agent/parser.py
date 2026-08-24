@@ -1,21 +1,12 @@
 import re
 import unicodedata
-from dataclasses import dataclass
 
+from desktop_agent.catalog import (
+    APPLICATION_ALIASES,
+    SUPPORTED_APPLICATIONS,
+    SUPPORTED_SITES,
+)
 from desktop_agent.models import Action, Intent, RiskLevel
-
-
-@dataclass(frozen=True)
-class Site:
-    name: str
-    url: str
-
-
-SUPPORTED_SITES: dict[str, Site] = {
-    "youtube": Site(name="YouTube", url="https://www.youtube.com/"),
-    "google": Site(name="Google", url="https://www.google.com/"),
-    "github": Site(name="GitHub", url="https://github.com/"),
-}
 
 
 def _normalize(command: str) -> str:
@@ -31,19 +22,29 @@ def parse_command(command: str) -> Action | None:
     """Convierte un comando conocido en una acción segura y estructurada."""
 
     normalized = _normalize(command)
-    match = re.fullmatch(r"(?:abrir|abri) ([a-z0-9-]+)", normalized)
-    if match is None:
+    parts = normalized.split(" ", maxsplit=1)
+    if len(parts) != 2 or parts[0] not in {"abrir", "abri"}:
         return None
 
-    site = SUPPORTED_SITES.get(match.group(1))
-    if site is None:
-        return None
+    target = parts[1]
+    site = SUPPORTED_SITES.get(target)
+    if site is not None:
+        return Action(
+            intent=Intent.OPEN_URL,
+            tool_name="open_url",
+            arguments={"url": site.url},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
 
-    return Action(
-        intent=Intent.OPEN_URL,
-        tool_name="open_url",
-        arguments={"url": site.url},
-        risk_level=RiskLevel.SAFE,
-        requires_confirmation=False,
-    )
+    application_key = APPLICATION_ALIASES.get(target)
+    if application_key in SUPPORTED_APPLICATIONS:
+        return Action(
+            intent=Intent.OPEN_APPLICATION,
+            tool_name="open_application",
+            arguments={"name": application_key},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
 
+    return None
