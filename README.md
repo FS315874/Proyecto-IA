@@ -188,7 +188,8 @@ desktop_agent/
     ├── applications.py
     └── browser.py
 docs/
-└── PROJECT_DOCUMENTATION.md
+├── PROJECT_DOCUMENTATION.md
+└── V0.3_ARCHITECTURE_PROPOSAL.md
 tests/
 ```
 
@@ -196,7 +197,8 @@ tests/
 
 - **v0.1 — Command Executor:** comandos deterministas y apertura de URLs.
 - **v0.2 — Application Launcher:** apertura segura de Chrome, VS Code y Calculadora.
-- **v0.3 — Natural Language:** próxima versión propuesta; todavía no implementada.
+- **v0.3 — Natural Language:** [arquitectura propuesta](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
+  todavía no implementada.
 
 ## Autoría y componentes externos
 

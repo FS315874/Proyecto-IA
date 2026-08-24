@@ -20,8 +20,8 @@ class ActionExecutor:
     def execute(self, action: Action) -> ToolResult:
         if action.risk_level is not RiskLevel.SAFE or action.requires_confirmation:
             raise ActionExecutionError(
-                "La acción no es segura sin confirmación, pero v0.1 aún no "
-                "incluye ese flujo."
+                "La acción no es segura sin confirmación. "
+                "El flujo de confirmación aún no está implementado."
             )
 
         tool = self._tools.get(action.tool_name)
