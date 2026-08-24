@@ -30,6 +30,31 @@ class ParseCommandTests(unittest.TestCase):
         assert action is not None
         self.assertEqual(action.arguments["url"], "https://www.youtube.com/")
 
+    def test_parses_each_supported_application(self) -> None:
+        expected_applications = {
+            "abrir chrome": "chrome",
+            "abrir vscode": "vscode",
+            "abrir calculadora": "calculator",
+        }
+
+        for command, expected_name in expected_applications.items():
+            with self.subTest(command=command):
+                action = parse_command(command)
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.OPEN_APPLICATION)
+                self.assertEqual(action.tool_name, "open_application")
+                self.assertEqual(action.arguments["name"], expected_name)
+                self.assertEqual(action.risk_level, RiskLevel.SAFE)
+                self.assertFalse(action.requires_confirmation)
+
+    def test_parses_visual_studio_code_alias(self) -> None:
+        action = parse_command("Abrí Visual Studio Code")
+
+        self.assertIsNotNone(action)
+        assert action is not None
+        self.assertEqual(action.arguments["name"], "vscode")
+
     def test_rejects_unknown_command(self) -> None:
         self.assertIsNone(parse_command("preparame un café"))
 
@@ -39,4 +64,3 @@ class ParseCommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
