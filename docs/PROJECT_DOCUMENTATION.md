@@ -55,13 +55,14 @@ La prioridad técnica del proyecto es:
 Por ese motivo, abrir una URL usa `webbrowser` y abrir una aplicación usa un
 ejecutable resuelto desde un catálogo. No se simulan clics en iconos del escritorio.
 
-### 3.4 Sin LLM en las primeras versiones
+### 3.4 Sin proveedor de LLM real en el estado actual
 
 Los comandos actuales son suficientemente simples para resolverse de manera
-determinista. Incorporar un LLM ahora agregaría costo, latencia, privacidad y
-resultados variables sin aportar una capacidad necesaria.
+determinista. El primer incremento interno de v0.3 define y prueba el límite que
+permitirá incorporar lenguaje natural sin entregar control al futuro proveedor, pero
+no instala un SDK, no realiza llamadas de red y no modifica la CLI.
 
-## 4. Arquitectura actual
+## 4. Arquitectura de ejecución actual
 
 ```text
 User
@@ -102,6 +103,36 @@ Operating System
 
 Un comando desconocido finaliza en el paso 3 y no alcanza ninguna herramienta.
 
+### 4.2 Núcleo interno de interpretación v0.3
+
+El primer incremento de v0.3 existe como una capa interna todavía no conectada a la
+CLI:
+
+```text
+Comando
+  |
+  +-- parser determinista -> Action, si reconoce el comando
+  |
+  `-- ProposalProvider opcional -> object no confiable
+                                  |
+                                  v
+                          validate_proposal
+                                  |
+                                  v
+                           ActionProposal
+                                  |
+                                  v
+                    build_action_from_proposal
+                                  |
+                                  v
+                    Action con política y catálogo locales
+```
+
+La interfaz `ProposalProvider` es independiente de cualquier SDK. El intérprete
+híbrido prioriza el parser de v0.2, no llama al proveedor cuando el comando ya es
+conocido y devuelve `None` ante propuestas inválidas, no soportadas o fuera del
+catálogo.
+
 ## 5. Responsabilidades por módulo
 
 | Módulo | Responsabilidad |
@@ -112,6 +143,7 @@ Un comando desconocido finaliza en el paso 3 y no alcanza ninguna herramienta.
 | `desktop_agent/models.py` | Definir acciones, intents, riesgo y resultados. |
 | `desktop_agent/parser.py` | Transformar comandos conocidos en acciones estructuradas. |
 | `desktop_agent/executor.py` | Aplicar la frontera de seguridad e invocar herramientas registradas. |
+| `desktop_agent/interpretation.py` | Validar propuestas no confiables, construir acciones locales y orquestar el fallback opcional. |
 | `desktop_agent/tools/browser.py` | Validar y abrir URLs HTTP(S). |
 | `desktop_agent/tools/applications.py` | Resolver e iniciar aplicaciones permitidas. |
 | `desktop_agent/logging_config.py` | Crear y configurar el log persistente. |
@@ -261,7 +293,8 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado de v0.2: 21 pruebas unitarias.
+Estado actual: 35 pruebas unitarias. Son las 21 pruebas de regresión de v0.2 más
+14 pruebas del primer incremento interno de v0.3, todas sin red ni efectos reales.
 
 ## 13. Evolución por versiones
 
@@ -293,6 +326,21 @@ Incluye:
 - nuevos logs, mensajes de error y pruebas;
 - separación entre README y documentación técnica acumulativa.
 
+### v0.3 — Natural Language (en desarrollo)
+
+Primer incremento interno implementado:
+
+- contrato versionado `ActionProposal`;
+- intents de propuesta `OPEN_URL`, `OPEN_APPLICATION` y `UNSUPPORTED`;
+- validación estricta de campos y coherencia;
+- construcción de `Action` solo desde el catálogo y la política locales;
+- intérprete híbrido con prioridad para el parser determinista;
+- proveedor inyectable y pruebas con un fake;
+- fallo seguro ante respuestas inválidas o errores declarados del proveedor.
+
+Este incremento no está conectado a la CLI y no incluye un adaptador real, SDK,
+credenciales, configuración externa ni llamadas de red.
+
 ## 14. Limitaciones conocidas
 
 - Solo se entienden comandos incluidos en el catálogo.
@@ -301,7 +349,8 @@ Incluye:
 - No se valida visualmente que una ventana esté lista.
 - No hay argumentos para aplicaciones.
 - No existe planificación de varios pasos.
-- No hay LLM, Playwright, screenshots, visión, mouse, teclado ni memoria.
+- No hay proveedor de LLM real, Playwright, screenshots, visión, mouse, teclado ni
+  memoria.
 - La política de confirmación todavía no tiene interfaz; por eso todo riesgo no
   seguro se bloquea.
 
@@ -338,7 +387,7 @@ docs: document v0.2 architecture and usage
 | --- | --- | --- |
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
-| v0.3 | Lenguaje natural estructurado con LLM | Propuesta documentada; no implementada |
+| v0.3 | Lenguaje natural estructurado con LLM | En desarrollo; primer núcleo interno implementado |
 | v0.4 | Automatización de navegador con Playwright | Pendiente |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
@@ -368,16 +417,16 @@ Tecnología externa:
 - Python;
 - módulos de su biblioteca estándar.
 
-No se incorporaron paquetes, APIs, código copiado ni servicios externos hasta
-v0.2.
+No se incorporaron paquetes, APIs, código copiado ni servicios externos en el primer
+incremento interno de v0.3.
 
-## 18. Preparación de v0.3
+## 18. Estado de implementación de v0.3
 
 La [propuesta de arquitectura de v0.3](V0.3_ARCHITECTURE_PROPOSAL.md) documenta el
-posible uso de un LLM como fallback del parser determinista. El modelo propondría
-solamente un intent y un destino canónico; el núcleo local validaría el esquema, la
-política y el catálogo antes de construir una `Action`.
+uso futuro de un LLM como fallback del parser determinista. El primer incremento ya
+implementa el contrato, su validación, la construcción local de `Action` y el
+orquestador híbrido con un proveedor falso.
 
-La propuesta no implementa v0.3 ni adopta proveedor, modelo, SDK o dependencia. Esas
-decisiones requieren revisión y autorización antes de modificar el núcleo o realizar
-llamadas externas.
+La versión v0.3 todavía no está terminada ni disponible desde la CLI. Adoptar un
+proveedor, modelo, SDK o dependencia y realizar llamadas externas continúa pendiente
+de revisión y autorización.

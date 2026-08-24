@@ -4,9 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión actual es **v0.2 — Application Launcher**. Todavía no utiliza un modelo
-de IA: los comandos se interpretan de forma determinista para comprender y validar
-primero el núcleo de ejecución.
+La versión ejecutable actual es **v0.2 — Application Launcher**. La rama de trabajo
+de v0.3 incorpora su primer núcleo interno: contrato de propuestas, validación local,
+construcción segura de acciones e intérprete híbrido probado con un proveedor falso.
+Todavía no hay un modelo de IA real ni cambios en el uso de la CLI.
 
 ## Funcionalidades
 
@@ -46,6 +47,19 @@ Usuario
 El texto del usuario nunca se ejecuta como código o como comando de shell. El
 parser solo genera acciones incluidas en un catálogo y el ejecutor únicamente
 invoca herramientas registradas.
+
+El primer incremento interno de v0.3 agrega, sin conectarlo a la CLI:
+
+```text
+parser determinista
+  -> si no reconoce el comando: ProposalProvider opcional
+  -> datos no confiables
+  -> validación estricta de ActionProposal
+  -> Action construida con catálogo y política locales
+```
+
+El proveedor no puede elegir herramientas, URLs, ejecutables, argumentos, riesgo ni
+confirmaciones. Esos valores siguen bajo control del código local.
 
 La documentación técnica completa está en
 [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
@@ -149,6 +163,10 @@ Cobertura funcional actual:
 - herramientas no registradas;
 - bloqueo de acciones no seguras;
 - coordinación de la CLI.
+- contrato y validación estricta de propuestas;
+- construcción local de acciones desde destinos canónicos;
+- prioridad del parser determinista y fallback con proveedor falso;
+- rechazo seguro de respuestas inválidas, no soportadas o fuera del catálogo.
 
 ## Logging
 
@@ -171,6 +189,9 @@ Los logs locales están excluidos de Git.
 - No se usa una shell para iniciar aplicaciones.
 - Toda acción declara `RiskLevel` y `requires_confirmation`.
 - v0.2 rechaza cualquier acción distinta de `SAFE`.
+- Las propuestas externas se consideran datos no confiables y nunca llegan
+  directamente al ejecutor.
+- El primer incremento de v0.3 usa solo un proveedor falso en tests.
 - No hay acceso a archivos, mouse, teclado, screenshots ni APIs externas.
 
 ## Estructura principal
@@ -181,6 +202,7 @@ desktop_agent/
 ├── catalog.py
 ├── cli.py
 ├── executor.py
+├── interpretation.py
 ├── logging_config.py
 ├── models.py
 ├── parser.py
@@ -197,8 +219,8 @@ tests/
 
 - **v0.1 — Command Executor:** comandos deterministas y apertura de URLs.
 - **v0.2 — Application Launcher:** apertura segura de Chrome, VS Code y Calculadora.
-- **v0.3 — Natural Language:** [arquitectura propuesta](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
-  todavía no implementada.
+- **v0.3 — Natural Language:** [arquitectura e implementación parcial](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
+  primer incremento interno terminado, sin proveedor real ni integración con la CLI.
 
 ## Autoría y componentes externos
 
@@ -215,4 +237,5 @@ Tecnología externa:
 
 - Python y su biblioteca estándar.
 
-No se incorporó código de terceros ni una API de IA en v0.2.
+No se incorporó código de terceros, dependencia nueva ni API de IA en el estado
+actual del proyecto.
