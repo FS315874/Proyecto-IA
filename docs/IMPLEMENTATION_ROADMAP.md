@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.13 completada y v0.14 habilitada.
+> Estado comprobado del producto: v0.14 completada en el núcleo.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -208,7 +208,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.11 | Confirmaciones y permisos completos | `COMPLETADO` | Ninguno. |
 | v0.12 | Aplicación de escritorio y servicio local | `COMPLETADO` | Ninguno. |
 | v0.13 | Entrada por voz | `COMPLETADO` | Ninguno. |
-| v0.14 | Control remoto propio | `PENDIENTE` | Ejecutar REMOTE-01. |
+| v0.14 | Control remoto propio | `COMPLETADO` | Ninguno. |
 
 Las versiones posteriores a v0.12 extienden la visión original y deberán revisarse
 cuando se acerquen. Su presencia no autoriza incorporarlas antes de tiempo.
@@ -993,6 +993,27 @@ reciba estado y confirme acciones sin exponer la computadora directamente a Inte
 - límites de comandos y cancelación remota;
 - ausencia de secretos dentro de mensajes o URLs.
 
+### Pasos completados
+
+1. `REMOTE-01` — `COMPLETADO`: modelo de amenazas para relay curioso o comprometido,
+   manipulación, replay, dispositivo robado, confirmación vieja, flood y sesión local
+   no disponible. Fallo seguro y revocación son límites obligatorios.
+2. `REMOTE-02` — `COMPLETADO`: pairing fuera de banda con secreto de 256 bits, prueba
+   HMAC y aprobación local; persistencia protegida por DPAPI y expiración a cinco
+   minutos.
+3. `REMOTE-03` — `COMPLETADO`: contrato JSON cerrado y cifrado AES-256-GCM; HKDF
+   deriva claves distintas por dirección y autentica metadata de ruteo.
+4. `REMOTE-04` — `COMPLETADO`: secuencias e IDs persistentes, tolerancia temporal
+   acotada y consumo atómico posterior a autenticar evitan replay y adelanto forjado.
+5. `REMOTE-05` — `COMPLETADO`: gateway al servicio local para orden, estado,
+   cancelación y confirmación exacta, sin acceso directo a herramientas.
+6. `REMOTE-06` — `COMPLETADO`: diez órdenes por minuto, tres pendientes, estados de
+   disponibilidad, resúmenes sin contenido privado y logs sólo de metadata.
+7. `REMOTE-07` — `COMPLETADO`: transporte HTTPS y worker de polling exclusivamente
+   saliente, manual, cancelable, con timeouts y tamaños máximos; no se despliega relay.
+8. `REMOTE-08` — `COMPLETADO`: 32 pruebas y aceptación cifrada local cubren pairing,
+   DPAPI, alteración, replay, confirmación, cancelación, flood, revocación y worker.
+
 ChatGPT Remote y el chat `Desktop Agent Control` funcionan como interfaz provisional
 de experimentación. No forman parte del núcleo ni reemplazan la autenticación de la
 futura solución propia.
@@ -1154,8 +1175,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `REMOTE-01 — Modelo de amenazas` de v0.14. El usuario
-autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
-hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
-exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
-entornos locales.
+No queda un paso habilitado después de v0.14. Incorporar un relay real, credenciales,
+una aplicación móvil o una nueva versión requiere alcance y autorización nuevos. La
+validación de cierre usó dobles locales y no realizó gastos ni expuso servicios a
+Internet.

@@ -4,11 +4,11 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.13 — Entrada por voz local**. La aplicación usa
-reconocimiento español de Windows sólo después de pulsar el botón, conserva el audio
-en el proceso local y muestra una transcripción editable antes de enviarla al mismo
-pipeline de órdenes. No hay escucha permanente, archivos de audio, servicio externo ni
-confirmación verbal de acciones sensibles.
+La versión ejecutable actual es **v0.14 — Control remoto propio**. El núcleo admite
+dispositivos vinculados explícitamente, órdenes y respuestas cifradas de extremo a
+extremo, protección contra repetición, confirmaciones remotas exactas, revocación y un
+cliente HTTPS exclusivamente saliente. No se incluye todavía una aplicación móvil ni
+un relay desplegado y la computadora no abre un puerto de escucha.
 
 ## Funcionalidades
 
@@ -127,6 +127,9 @@ input está activo.
 v0.9 a v0.13 usan solamente la biblioteca estándar. La voz usa `System.Speech` y
 Windows PowerShell mediante un helper fijo incluido en el paquete; no agrega una
 dependencia Python, red o modelo externo.
+v0.14 fija `cryptography==50.0.0` para AES-GCM y HKDF. Los secretos de dispositivo se
+protegen con DPAPI para el usuario actual de Windows; TLS protege el salto al relay y
+el cifrado de aplicación evita que ese relay lea órdenes o respuestas.
 
 ## Requisitos
 
@@ -153,7 +156,7 @@ git clone https://github.com/FS315874/Proyecto-IA.git
 cd Proyecto-IA
 ```
 
-Instalá el proyecto y su dependencia declarada con:
+Instalá el proyecto y sus dependencias declaradas con:
 
 ```powershell
 python -m pip install .
@@ -201,6 +204,18 @@ la detención de emergencia. La voz nunca aprueba el panel de confirmación.
 El reconocimiento de audio es local; después de revisar y enviar el texto se aplica la
 misma configuración opt-in de IA que a una orden escrita, incluido el presupuesto.
 
+El canal remoto de v0.14 es una infraestructura de núcleo, no una opción nueva de la
+CLI o la ventana. Su aceptación reproducible se ejecuta sin red:
+
+```powershell
+python -m scripts.remote14_qa_check
+```
+
+La prueba vincula un teléfono ficticio, cifra una orden, recibe estado, bloquea un
+replay, confirma una modificación de datos de prueba y revoca el dispositivo. Para
+uso real todavía se necesitan una aplicación móvil y un relay desplegado; esa etapa
+requerirá una decisión aparte sobre proveedor, credenciales, privacidad y operación.
+
 Iniciá el modo interactivo desde la raíz del proyecto:
 
 ```powershell
@@ -210,7 +225,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.13.0 — escribí 'salir' para terminar.
+Desktop Agent v0.14.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -441,6 +456,10 @@ desktop_agent/
 ├── playwright_backend.py
 ├── permissions.py
 ├── recipes.py
+├── remote_gateway.py
+├── remote_protocol.py
+├── device_registry.py
+├── outbound_relay.py
 ├── tk_app.py
 ├── usage_budget.py
 ├── voice.py
@@ -450,6 +469,7 @@ desktop_agent/
 ├── windows_capture.py
 ├── windows_input.py
 ├── windows_session.py
+├── windows_secrets.py
 ├── windows_speech.py
 └── tools/
     ├── applications.py
@@ -469,12 +489,14 @@ docs/
 ├── V0.10_ARCHITECTURE.md
 ├── V0.11_ARCHITECTURE.md
 ├── V0.12_ARCHITECTURE.md
-└── V0.13_ARCHITECTURE.md
+├── V0.13_ARCHITECTURE.md
+└── V0.14_ARCHITECTURE.md
 scripts/
 ├── policy11_qa_check.py
 ├── recipe10_qa_check.py
 ├── ui12_smoke_check.py
 ├── voice13_qa_check.py
+├── remote14_qa_check.py
 └── web07_manual_check.py
 tests/
 ```
@@ -509,6 +531,10 @@ tests/
   confirmaciones, cancelación y suspensión segura de sesión, sin abrir puertos.
 - **v0.13 — Entrada por voz local:** completada; captura explícita, transcripción
   editable, métricas, cancelación verbal segura y cero envío externo de audio.
+- **v0.14 — Control remoto propio:** completada en el núcleo; pairing aprobado
+  localmente, cifrado E2E, replay protection, estado acotado, cancelación,
+  confirmaciones remotas, revocación y transporte HTTPS saliente. Falta desplegar un
+  relay y construir la aplicación móvil para uso cotidiano.
 
 ## Autoría y componentes externos
 
@@ -531,6 +557,8 @@ Construido en el proyecto:
 - política por capacidades y broker de confirmaciones locales o remotas;
 - fachada de servicio local, historial de tareas y monitor de sesión Windows;
 - contrato, controlador y adaptador local de reconocimiento de voz para Windows;
+- protocolo remoto cifrado, registro de dispositivos y gateway al servicio local;
+- cliente de relay HTTPS exclusivamente saliente;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

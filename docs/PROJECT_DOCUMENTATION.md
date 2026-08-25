@@ -465,7 +465,7 @@ para saltar versiones o decisiones del usuario.
 | v0.11 | Confirmaciones y permisos completos | Completada |
 | v0.12 | Interfaz de escritorio | Completada |
 | v0.13 | Entrada por voz | Completada |
-| v0.14 | Control remoto propio | Pendiente |
+| v0.14 | Control remoto propio | Completada en el núcleo; sin relay desplegado |
 
 El roadmap es una orientación, no un compromiso de implementar módulos antes de
 que la versión anterior sea estable.
@@ -940,3 +940,41 @@ Tk 8.6 y backend falso corrigió una transcripción antes de enviarla y verific�
 cancelación verbal, sin micrófono ni red. Una consulta real sin captura confirmó que
 Windows dispone de `en-US` y `es-ES`; se omitió grabar audio real. La suite suma 304
 pruebas.
+
+## 30. Estado de implementación de v0.14
+
+v0.14 incorpora un canal remoto propio sin permitir acceso directo a herramientas.
+El teléfono futuro produce un mensaje de esquema cerrado; `RemoteGateway` lo autentica,
+consume su secuencia contra replay y lo entrega a `DesktopAgentService`. Por eso las
+órdenes remotas atraviesan el mismo parser, catálogo, ejecutor, política y evidencia
+que GUI y voz. El relay no abre una ruta alternativa de ejecución.
+
+El pairing genera un secreto aleatorio de 256 bits que se entrega una sola vez por un
+canal fuera de banda. Activarlo requiere tanto una prueba HMAC del dispositivo como
+aprobación local explícita. En disco sólo queda la forma protegida por DPAPI para el
+usuario actual. Revocar elimina esa forma protegida y bloquea mensajes futuros.
+
+Cada dirección deriva una clave distinta mediante HKDF-SHA256. Los mensajes usan
+AES-256-GCM con nonce aleatorio; tipo, dispositivo, ID, secuencia y fecha están ligados
+como datos autenticados. El registro persiste la secuencia antes de cualquier efecto,
+recuerda IDs recientes y rechaza mensajes viejos. Las órdenes que parecen contener
+credenciales o secretos se rechazan antes de entrar al servicio.
+
+El estado remoto revela como máximo veinte IDs, estados y nombres de herramienta: no
+envía texto de órdenes, resultados ni historial privado. Una confirmación sólo se
+muestra y acepta cuando la política original incluyó `REMOTE`, y debe repetir tarea,
+request, desafío y fingerprint exactos. Cancelar se limita a un ID de tarea. También
+se aplican diez órdenes por minuto y tres tareas pendientes por dispositivo.
+
+`HttpsRelayTransport` usa validación TLS estándar, puerto 443, paths fijos, límites de
+tamaño y timeouts. `OutboundRelayClient` se inicia manualmente y sólo hace polling
+saliente; no escucha sockets ni arranca con Windows. El relay ve metadatos mínimos de
+ruteo y sobres cifrados, no el contenido. No existe todavía relay de producción,
+credencial, exposición a Internet ni aplicación móvil.
+
+Se fijó `cryptography==50.0.0`, con licencia dual Apache-2.0/BSD-3-Clause y soporte
+para Python 3.13 en Windows. Treinta y dos pruebas nuevas cubren protocolo, DPAPI,
+pairing, expiración, replay, revocación, rate limit, confirmación exacta, redacción,
+HTTPS y ciclo del worker. La aceptación `remote14_qa_check` recorre orden, estado,
+replay, confirmación y revocación sobre el servicio local real con dobles ficticios,
+sin red ni acciones de escritorio. La suite suma 336 pruebas.

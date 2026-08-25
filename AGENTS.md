@@ -42,6 +42,7 @@ python -m scripts.recipe10_qa_check
 python -m scripts.policy11_qa_check
 python -m scripts.ui12_smoke_check
 python -m scripts.voice13_qa_check
+python -m scripts.remote14_qa_check
 python -m unittest discover -s tests -v
 ```
 
