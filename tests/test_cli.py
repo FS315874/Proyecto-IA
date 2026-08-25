@@ -486,7 +486,7 @@ class V04CliIntegrationTests(unittest.TestCase):
         self.assertEqual(
             output,
             [
-                "Desktop Agent v0.7.0 — escribí 'salir' para terminar.",
+                "Desktop Agent v0.8.0 — escribí 'salir' para terminar.",
                 "Reproducción detenida.",
                 "Hasta luego.",
             ],

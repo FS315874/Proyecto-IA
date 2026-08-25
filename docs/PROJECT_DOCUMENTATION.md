@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 206 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 220 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -459,7 +459,7 @@ para saltar versiones o decisiones del usuario.
 | v0.5 | Tareas de varios pasos | Completada |
 | v0.6 | Screenshots | Completada |
 | v0.7 | Visión | Completada |
-| v0.8 | Mouse y teclado con límites | Pendiente |
+| v0.8 | Mouse y teclado con límites | Completada |
 | v0.9 | Bucle observe-plan-act-evaluate | Pendiente |
 | v0.10 | Recuperación y estrategias alternativas | Pendiente |
 | v0.11 | Confirmaciones y permisos completos | Pendiente |
@@ -759,3 +759,37 @@ precisión, recall e IoU estructurales de 1,0. Esa cifra valida el contrato, la
 normalización y el evaluador con respuestas guionadas; no representa precisión real de
 `gpt-5.6-luna`. No hubo red, credencial ni captura real. Veintitrés pruebas nuevas
 elevan la suite a 206 casos.
+
+## 24. Estado de implementación de v0.8
+
+v0.8 agrega `InputController` como frontera separada de planificación, visión y
+backend. Un `InputAction` solo puede referir a un elemento que el controlador registró
+para una observación vigente. Declara `RiskLevel.CAUTION`, exige confirmación y no
+acepta coordenadas arbitrarias ni texto de control.
+
+`prepare` valida contexto, elemento, rol, texto y presupuesto, y emite un challenge de
+confirmación que caduca a los treinta segundos y solo puede consumirse una vez. La
+decisión humana debe coincidir con acción y challenge; un rechazo no enfoca ni toca la
+ventana. El presupuesto predeterminado es de cinco inputs y se revalida también justo
+antes de ejecutar para impedir preparaciones concurrentes que lo eludan.
+
+Antes de entregar un input se comprueban handle, proceso, tamaño cliente, visibilidad,
+estado no minimizado, ausencia de modal y contexto permitido. El foco se obtiene sobre
+la ventana exacta y se vuelve a verificar después de resolver el control. La escritura
+requiere un campo accesible enfocado, no secreto, texto sin teclas de control y
+verificación del valor final. El clic usa primero el control accesible; el fallback por
+coordenadas solo puede apuntar al centro de un elemento visual vigente y debe estar
+habilitado explícitamente.
+
+`WindowsInputBackend` usa mensajes dirigidos a controles Win32 antes que input global.
+Bloquea terminales, editores de registro, seguridad, credenciales, títulos de login y
+campos con estilo password. Al iniciar input real debe existir un `EmergencyStop`; la
+demo registró `Ctrl+Alt+Esc` mediante `WindowsEmergencyHotkey`. El canal se consulta en
+límites seguros antes de cualquier entrega.
+
+Todo intento de foco o input invalida la observación anterior, incluso si falla. Los
+logs contienen acción, tipo, método, etapa, estado y duración, pero no texto, etiqueta,
+título, coordenadas ni detalle del backend. Catorce pruebas con dobles cubren la
+política. La demo autorizada abrió una ventana Win32 propia con datos ficticios,
+escribió y verificó `Cliente ficticio 123`, pulsó un botón accesible, comprobó su
+resultado y cerró con el hotkey armado. La suite pasa a 220 pruebas.

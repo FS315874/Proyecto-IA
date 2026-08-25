@@ -4,10 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.7 — Interpretación visual segura**. Conserva la
-captura temporal y acotada de v0.6 y agrega elementos visuales estructurados, confianza
-operativa, fusión local con accesibilidad y rechazo de instrucciones dentro del
-contenido. El proveedor visual está deshabilitado por defecto y no ejecuta acciones.
+La versión ejecutable actual es **v0.8 — Input de escritorio con límites**. Conserva
+la interpretación visual de v0.7 y agrega clic y escritura dirigidos a una ventana
+exacta, con confirmación de un solo uso, foco comprobado, presupuesto, emergencia y
+bloqueos de contexto. Esta capacidad todavía no se expone en la CLI o GUI cotidiana.
 
 ## Funcionalidades
 
@@ -120,6 +120,9 @@ durante la operación normal.
 v0.7 reutiliza el SDK y el modelo `gpt-5.6-luna`: admite entrada de imagen y salidas
 estructuradas a bajo costo. Solo se habilita con dos opt-ins y sigue sujeto al límite
 mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas reales.
+v0.8 usa controles Win32 y mensajes dirigidos antes que mouse global. No agrega una
+dependencia y mantiene `Ctrl+Alt+Esc` como atajo de emergencia mientras el backend de
+input está activo.
 
 ## Requisitos
 
@@ -187,7 +190,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.7.0 — escribí 'salir' para terminar.
+Desktop Agent v0.8.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -292,7 +295,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 206 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 220 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -396,6 +399,7 @@ desktop_agent/
 ├── catalog.py
 ├── cli.py
 ├── executor.py
+├── input_control.py
 ├── interpretation.py
 ├── logging_config.py
 ├── models.py
@@ -410,6 +414,7 @@ desktop_agent/
 ├── vision_config.py
 ├── vision_runtime.py
 ├── windows_capture.py
+├── windows_input.py
 └── tools/
     ├── applications.py
     ├── browser.py
@@ -422,7 +427,8 @@ docs/
 ├── V0.4.1_ARCHITECTURE.md
 ├── V0.5_ARCHITECTURE.md
 ├── V0.6_ARCHITECTURE.md
-└── V0.7_ARCHITECTURE.md
+├── V0.7_ARCHITECTURE.md
+└── V0.8_ARCHITECTURE.md
 scripts/
 └── web07_manual_check.py
 tests/
@@ -446,6 +452,8 @@ tests/
   regiones acotadas, redacción, retención breve e invalidación por cambio de estado.
 - **v0.7 — Interpretación visual segura:** completada; proveedor opt-in, esquema
   estricto, confianza, fusión accesible local y contenido visual tratado como datos.
+- **v0.8 — Input de escritorio con límites:** completada; clic y texto confirmados,
+  ventana/foco exactos, fallback ligado a observación, bloqueos y emergencia.
 
 ## Autoría y componentes externos
 
@@ -462,6 +470,7 @@ Construido en el proyecto:
 - contrato, validación y ejecución acotada de planes de varios pasos;
 - contrato y backend nativo para observaciones visuales locales minimizadas;
 - validación, evaluación y adaptador opt-in para interpretación visual;
+- controlador y backend Win32 para input confirmado y acotado;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

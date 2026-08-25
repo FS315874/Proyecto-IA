@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.7 completada y v0.8 habilitada.
+> Estado comprobado del producto: v0.8 completada y v0.9 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -202,8 +202,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.5 | Tareas de varios pasos | `COMPLETADO` | Ninguno. |
 | v0.6 | Observación mediante screenshots | `COMPLETADO` | Ninguno. |
 | v0.7 | Interpretación visual | `COMPLETADO` | Ninguno. |
-| v0.8 | Mouse y teclado con límites | `PENDIENTE` | Ejecutar INPUT-01. |
-| v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Solo después de cerrar v0.8. |
+| v0.8 | Mouse y teclado con límites | `COMPLETADO` | Ninguno. |
+| v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Ejecutar LOOP-01. |
 | v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Solo después de cerrar v0.9. |
 | v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Solo después de cerrar v0.10. |
 | v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Solo después de cerrar v0.11. |
@@ -784,14 +784,22 @@ y capacidad de emergencia.
 
 ### Secuencia
 
-1. diseñar interfaz de input inyectable;
-2. implementar selección única de ventana;
-3. implementar clic por elemento accesible;
-4. implementar escritura con foco observado;
-5. agregar coordenadas como fallback asociado a una captura vigente;
-6. detenerse ante cambio de ventana, modal desconocido o pérdida de foco;
-7. probar completamente con dobles antes de efectos reales;
-8. realizar demo manual segura y cerrar la versión.
+1. `INPUT-01` — `COMPLETADO`: puerto inyectable, acciones `CAUTION`, confirmación
+   de un uso, presupuesto y canal de emergencia obligatorio.
+2. `INPUT-02` — `COMPLETADO`: handle, proceso, tamaño, visibilidad y ventana exacta
+   se verifican antes y después del foco.
+3. `INPUT-03` — `COMPLETADO`: botones Win32 se resuelven por rol e intersección y se
+   activan mediante el control accesible dirigido.
+4. `INPUT-04` — `COMPLETADO`: campos editables requieren foco exacto observado; el
+   texto se entrega y verifica sin registrarlo.
+5. `INPUT-05` — `COMPLETADO`: coordenadas solo como fallback explícito al centro de
+   un elemento ligado a una observación vigente.
+6. `INPUT-06` — `COMPLETADO`: pérdida de foco, proceso/tamaño distinto, modal,
+   contexto bloqueado, campo secreto o emergencia detienen el flujo.
+7. `INPUT-07` — `COMPLETADO`: catorce pruebas con dobles cubren confirmación,
+   cancelación, presupuesto, foco, fallos, accesibilidad y fallback.
+8. `INPUT-08` — `COMPLETADO`: demo real autorizada sobre una ventana Win32 propia;
+   escritura y clic accesibles verificados con `Ctrl+Alt+Esc` armado.
 
 ## 13. v0.9 — Bucle observar-planificar-actuar-evaluar
 
@@ -1087,7 +1095,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `INPUT-01 — Puerto de entrada` de v0.8. El usuario
+El primer paso no completado es `LOOP-01 — Contrato del bucle` de v0.9. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o

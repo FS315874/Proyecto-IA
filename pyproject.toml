@@ -1,6 +1,6 @@
 [project]
 name = "desktop-agent"
-version = "0.7.0"
+version = "0.8.0"
 description = "Agente de escritorio seguro con interpretación híbrida de instrucciones"
 readme = "README.md"
 requires-python = ">=3.10"
