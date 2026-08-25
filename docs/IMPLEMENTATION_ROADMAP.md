@@ -1,8 +1,8 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.3 completada mediante aceptación simulada.
-> Última revisión: 2026-08-24.
+> Estado comprobado del producto: v0.3 completada y v0.4 en desarrollo.
+> Última revisión: 2026-08-25.
 
 ## 1. Propósito
 
@@ -197,7 +197,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `PENDIENTE` | Solo después de cerrar v0.3. |
+| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-02. |
 | v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
@@ -465,11 +465,27 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-01 — Propuesta técnica y dependencia
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `DECISION_USUARIO` y `PERMISO_EXTERNO`.
-- Evaluar Playwright, mantenimiento, licencia, tamaño, navegadores y aislamiento.
-- Definir si se utilizará navegador aislado o sesión existente.
-- El primer alcance no debe requerir login ni perfil personal.
+- Decisión aprobada por el usuario el 2026-08-25:
+  - Playwright `1.62.0`, API síncrona y versión fijada;
+  - únicamente Chromium administrado por Playwright;
+  - contexto temporal no persistente, sin login ni perfil personal;
+  - navegador visible para la demostración con audio y ejecución headless solo para
+    pruebas que no necesiten reproducción audible;
+  - Chrome estable con perfil separado queda como fallback sujeto a evidencia de un
+    problema de codecs; conectar el perfil personal o usar CDP queda fuera.
+- Evidencia:
+  - licencia Apache-2.0 y Python >=3.10 confirmados en la metadata oficial;
+  - compatibilidad comprobada con el Python 3.13 local;
+  - dependencia declarada en `pyproject.toml`;
+  - Chrome for Testing 151.0.7922.34, shell headless, FFmpeg y verificador instalados;
+  - Firefox y WebKit ausentes; caché local observada de aproximadamente 701 MiB;
+  - no se lanzó ni controló ningún navegador.
+- Riesgos aceptados:
+  - cada actualización de Playwright puede exigir descargar binarios compatibles;
+  - el flujo real dependerá del DOM, consentimiento, anuncios y políticas de YouTube;
+  - la reproducción audible debe verificarse y no puede inferirse de un clic.
 
 #### WEB-02 — Contrato del adaptador de navegador
 
@@ -900,9 +916,9 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-01 — Propuesta técnica y dependencia` de v0.4.
+El primer paso no completado es `WEB-02 — Contrato del adaptador de navegador` de
+v0.4.
 
-Solo cuando el usuario solicite continuar se deberán evaluar Playwright y las
-alternativas indicadas en WEB-01. Ese checkpoint requiere presentar una decisión y
-detenerse; no autoriza todavía instalar dependencias, usar red ni controlar un
-navegador real.
+Cuando el usuario solicite continuar se deberá definir e implementar únicamente el
+contrato semántico reemplazable, sus errores, límites y tests unitarios. WEB-02 no
+autoriza todavía navegar por YouTube ni abrir un navegador real.

@@ -404,7 +404,9 @@ validación. Las herramientas del sistema también fueron reemplazadas por doble
 - El presupuesto es una barrera local, no reemplaza la facturación de OpenAI. El
   archivo no coordina varias instancias ejecutándose en paralelo; la v0.3 presupone
   una única instancia activa.
-- No hay Playwright, screenshots, visión, mouse, teclado ni memoria.
+- Playwright y Chromium están instalados como base de v0.4, pero todavía no existe un
+  adaptador ni control de navegador. Tampoco hay screenshots, visión, mouse, teclado
+  ni memoria.
 - La política de confirmación todavía no tiene interfaz; por eso todo riesgo no
   seguro se bloquea.
 
@@ -447,7 +449,7 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | Pendiente |
+| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-01 completado |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -478,7 +480,8 @@ Tecnología externa:
 - Python;
 - módulos de su biblioteca estándar;
 - SDK oficial `openai==3.3.1`, licencia Apache-2.0;
-- OpenAI Responses API y `gpt-5.6-luna`, todavía sin uso real desde el proyecto.
+- OpenAI Responses API y `gpt-5.6-luna`, todavía sin uso real desde el proyecto;
+- Playwright `1.62.0`, licencia Apache-2.0, con Chromium administrado para v0.4.
 
 El adaptador y sus límites fueron construidos en el proyecto. El SDK, el transporte,
 la API y el modelo son componentes externos y no se presentan como desarrollo propio.
@@ -502,3 +505,16 @@ oficial de Python; NLI-04 completó la configuración segura, NLI-05 declaró
 CLI. NLI-08 comprobó localmente las frases acordadas, los rechazos, los fallos y el
 presupuesto sin red ni efectos reales. El adaptador sigue sin validación contra la
 API real; cualquier prueba externa requiere autorización expresa.
+
+## 19. Estado de implementación de v0.4
+
+La [propuesta técnica de v0.4](V0.4_ARCHITECTURE_PROPOSAL.md) registra la decisión
+WEB-01 aprobada el 2026-08-25. Se eligió Playwright `1.62.0`, su API síncrona y el
+Chromium administrado por la misma versión, siempre con contexto temporal aislado y
+sin reutilizar el perfil personal de Chrome.
+
+La dependencia quedó declarada y se verificó localmente con Python 3.13. Playwright
+descargó Chrome for Testing 151.0.7922.34, el shell headless correspondiente, FFmpeg y
+el verificador de dependencias; no instaló Firefox ni WebKit. La caché observada ocupó
+aproximadamente 701 MiB. Este paso no lanzó un navegador ni implementó herramientas,
+selectores o navegación. El próximo incremento autorizado por el roadmap es WEB-02.

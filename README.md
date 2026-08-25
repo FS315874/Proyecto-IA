@@ -10,6 +10,8 @@ adaptador opt-in para OpenAI. El proveedor permanece deshabilitado por defecto.
 También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 por
 defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
 no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
+La rama de trabajo de v0.4 completó únicamente la selección e instalación de
+Playwright; todavía no implementa ni expone automatización de navegador.
 
 ## Funcionalidades
 
@@ -84,14 +86,18 @@ en [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
 - `subprocess` sin `shell=True` para iniciar aplicaciones permitidas.
 - `logging` para el registro persistente.
 - `unittest` para las pruebas automatizadas.
+- Playwright para la futura automatización DOM acotada de v0.4.
 
 El camino determinista continúa usando solo la biblioteca estándar. v0.3 declara
 `openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
 fallback, por lo que los comandos deterministas no inicializan el SDK.
+WEB-01 de v0.4 declara `playwright==1.62.0` y selecciona únicamente Chromium con
+contextos temporales aislados. Todavía no existe un adaptador que lo lance.
 
 ## Requisitos
 
 - Windows 10 u 11 para `open_application`.
+- Windows 11 o posterior para la versión seleccionada de Playwright.
 - Python 3.10 o posterior.
 - Un navegador predeterminado configurado.
 - Las aplicaciones que se quieran abrir deben estar instaladas.
@@ -116,6 +122,17 @@ Instalá el proyecto y su dependencia declarada con:
 ```powershell
 python -m pip install .
 ```
+
+Para preparar el navegador de v0.4 se descarga únicamente la familia Chromium que
+corresponde exactamente a la versión fijada de Playwright:
+
+```powershell
+python -m playwright install chromium
+```
+
+En la instalación comprobada, Chrome for Testing, su shell headless, FFmpeg y el
+verificador de dependencias ocuparon aproximadamente 701 MiB una vez extraídos. No se
+instalaron Firefox ni WebKit. Actualizar Playwright puede requerir repetir este paso.
 
 ## Uso
 
@@ -284,7 +301,8 @@ desktop_agent/
 docs/
 ├── IMPLEMENTATION_ROADMAP.md
 ├── PROJECT_DOCUMENTATION.md
-└── V0.3_ARCHITECTURE_PROPOSAL.md
+├── V0.3_ARCHITECTURE_PROPOSAL.md
+└── V0.4_ARCHITECTURE_PROPOSAL.md
 tests/
 ```
 
@@ -295,6 +313,8 @@ tests/
 - **v0.3 — Natural Language:** [arquitectura y cierre](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
+- **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
+  WEB-01 completado; dependencia y Chromium preparados, sin adaptador ni control real.
 
 ## Autoría y componentes externos
 
@@ -313,7 +333,9 @@ Tecnología externa:
 - Python y su biblioteca estándar;
 - SDK oficial `openai==3.3.1`, licencia Apache-2.0, declarado para v0.3;
 - OpenAI Responses API y `gpt-5.6-luna` como servicio y modelo seleccionados, aún
-  sin llamadas reales.
+  sin llamadas reales;
+- Playwright `1.62.0`, licencia Apache-2.0, y sus binarios administrados de Chromium,
+  declarados para v0.4.
 
 La integración depende de un servicio externo y su uso futuro tendrá costo y políticas
 propias. El modelo y el SDK no son capacidades desarrolladas por el proyecto.
