@@ -4,10 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.6 — Observación visual local**. Conserva los
-planes acotados de v0.5 y agrega captura temporal de una ventana exacta, con límites,
-redacción y referencias que caducan al cambiar el estado. No captura el escritorio
-completo por defecto ni envía imágenes a servicios externos.
+La versión ejecutable actual es **v0.7 — Interpretación visual segura**. Conserva la
+captura temporal y acotada de v0.6 y agrega elementos visuales estructurados, confianza
+operativa, fusión local con accesibilidad y rechazo de instrucciones dentro del
+contenido. El proveedor visual está deshabilitado por defecto y no ejecuta acciones.
 
 ## Funcionalidades
 
@@ -117,6 +117,9 @@ v0.5 tampoco agrega dependencias: el planificador reutiliza el catálogo, el eje
 el presupuesto y el adaptador de Responses existente.
 v0.6 usa `ctypes` y APIs incluidas en Windows; no agrega paquetes ni guarda capturas
 durante la operación normal.
+v0.7 reutiliza el SDK y el modelo `gpt-5.6-luna`: admite entrada de imagen y salidas
+estructuradas a bajo costo. Solo se habilita con dos opt-ins y sigue sujeto al límite
+mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas reales.
 
 ## Requisitos
 
@@ -184,7 +187,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.6.0 — escribí 'salir' para terminar.
+Desktop Agent v0.7.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -226,6 +229,20 @@ python -m desktop_agent "quiero usar la calculadora"
 Si el opt-in está ausente, la configuración es inválida o el proveedor falla, no se
 construye una acción externa. Una llamada real usaría un servicio con costo y todavía
 no forma parte de las validaciones automatizadas realizadas en el proyecto.
+
+Compartir una región visual exige un segundo opt-in independiente. Habilitar IA para
+órdenes de texto no habilita imágenes automáticamente:
+
+```powershell
+$env:DESKTOP_AGENT_AI_ENABLED = "true"
+$env:DESKTOP_AGENT_VISION_ENABLED = "true"
+$env:OPENAI_API_KEY = "..."  # solo en el entorno; nunca en archivos o logs
+```
+
+La integración visual envía únicamente el PNG en memoria de la región ya acotada y
+redactada, con detalle bajo y `store=False`. Los textos de accesibilidad se fusionan
+localmente y no se adjuntan a la llamada. v0.7 todavía no expone un comando de captura
+en la CLI ni convierte un elemento observado en una acción.
 
 `DESKTOP_AGENT_AI_MONTHLY_BUDGET_USD` es opcional: vale `1.00` si está ausente y
 acepta importes entre `0.01` y `1000`. El registro usa el mes calendario local y se
@@ -275,7 +292,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 183 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 206 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -373,6 +390,7 @@ catálogo local permitido.
 desktop_agent/
 ├── __main__.py
 ├── budgeted_provider.py
+├── budgeted_vision_provider.py
 ├── browser_adapter.py
 ├── browser_contract.py
 ├── catalog.py
@@ -383,10 +401,14 @@ desktop_agent/
 ├── models.py
 ├── observation.py
 ├── openai_plan_provider.py
+├── openai_vision_provider.py
 ├── parser.py
 ├── plans.py
 ├── playwright_backend.py
 ├── usage_budget.py
+├── vision.py
+├── vision_config.py
+├── vision_runtime.py
 ├── windows_capture.py
 └── tools/
     ├── applications.py
@@ -399,7 +421,8 @@ docs/
 ├── V0.4_ARCHITECTURE_PROPOSAL.md
 ├── V0.4.1_ARCHITECTURE.md
 ├── V0.5_ARCHITECTURE.md
-└── V0.6_ARCHITECTURE.md
+├── V0.6_ARCHITECTURE.md
+└── V0.7_ARCHITECTURE.md
 scripts/
 └── web07_manual_check.py
 tests/
@@ -421,6 +444,8 @@ tests/
   validación total previa, límites de tiempo, cancelación y resultados por paso.
 - **v0.6 — Observación visual local:** completada; captura exacta de ventana,
   regiones acotadas, redacción, retención breve e invalidación por cambio de estado.
+- **v0.7 — Interpretación visual segura:** completada; proveedor opt-in, esquema
+  estricto, confianza, fusión accesible local y contenido visual tratado como datos.
 
 ## Autoría y componentes externos
 
@@ -436,6 +461,7 @@ Construido en el proyecto:
 - adaptador seguro de propuestas para OpenAI;
 - contrato, validación y ejecución acotada de planes de varios pasos;
 - contrato y backend nativo para observaciones visuales locales minimizadas;
+- validación, evaluación y adaptador opt-in para interpretación visual;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

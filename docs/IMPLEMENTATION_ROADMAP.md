@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.6 completada y v0.7 habilitada.
+> Estado comprobado del producto: v0.7 completada y v0.8 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -201,8 +201,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.4.1 | Consola local mínima | `COMPLETADO` | Ninguno. |
 | v0.5 | Tareas de varios pasos | `COMPLETADO` | Ninguno. |
 | v0.6 | Observación mediante screenshots | `COMPLETADO` | Ninguno. |
-| v0.7 | Interpretación visual | `PENDIENTE` | Ejecutar VIS-01. |
-| v0.8 | Mouse y teclado con límites | `PENDIENTE` | Solo después de cerrar v0.7. |
+| v0.7 | Interpretación visual | `COMPLETADO` | Ninguno. |
+| v0.8 | Mouse y teclado con límites | `PENDIENTE` | Ejecutar INPUT-01. |
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Solo después de cerrar v0.8. |
 | v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Solo después de cerrar v0.9. |
 | v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Solo después de cerrar v0.10. |
@@ -750,14 +750,20 @@ permitir que el modelo ejecute directamente acciones.
 
 ### Secuencia
 
-1. decidir proveedor, modelo, privacidad, costo y habilitación explícita;
-2. definir esquema de elementos, confianza operativa y resultado `UNSUPPORTED`;
-3. enviar solo la región necesaria;
-4. validar toda respuesta localmente;
-5. combinar texto de accesibilidad cuando esté disponible;
-6. rechazar instrucciones presentes dentro del contenido observado;
-7. medir precisión con un conjunto de pantallas ficticias;
-8. probar y cerrar la versión.
+1. `VIS-01` — `COMPLETADO`: OpenAI Responses con `gpt-5.6-luna`, doble opt-in,
+   presupuesto mensual y `store=False`; decisión documentada sin llamada real.
+2. `VIS-02` — `COMPLETADO`: esquema cerrado, roles, cajas normalizadas, confianza
+   mínima de 0,80 y resultado `UNSUPPORTED`.
+3. `VIS-03` — `COMPLETADO`: solo se codifica y entrega el frame de la observación.
+4. `VIS-04` — `COMPLETADO`: JSON, tipos, límites, cajas y telemetría revalidados.
+5. `VIS-05` — `COMPLETADO`: nombres accesibles fusionados localmente por rol e IoU;
+   campos sensibles se eliminan y el texto accesible no se envía al proveedor.
+6. `VIS-06` — `COMPLETADO`: instrucciones detectadas por proveedor o validación local
+   producen `CONTENT_INSTRUCTION` sin elementos ni acciones.
+7. `VIS-07` — `COMPLETADO`: evaluación estructural reproducible sobre tres regiones
+   ficticias; precisión, recall e IoU de 1,0 para dos elementos esperados.
+8. `VIS-08` — `COMPLETADO`: 23 pruebas nuevas y demo simulada sin red ni captura real;
+   precisión real del modelo explícitamente no medida.
 
 ## 12. v0.8 — Mouse y teclado con límites
 
@@ -1081,7 +1087,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `VIS-01 — Decisión de visión` de v0.7. El usuario
+El primer paso no completado es `INPUT-01 — Puerto de entrada` de v0.8. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o

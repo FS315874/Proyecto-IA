@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 183 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 206 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -458,7 +458,7 @@ para saltar versiones o decisiones del usuario.
 | v0.4.1 | Consola local mínima y persistente | Completada |
 | v0.5 | Tareas de varios pasos | Completada |
 | v0.6 | Screenshots | Completada |
-| v0.7 | Visión | Pendiente |
+| v0.7 | Visión | Completada |
 | v0.8 | Mouse y teclado con límites | Pendiente |
 | v0.9 | Bucle observe-plan-act-evaluate | Pendiente |
 | v0.10 | Recuperación y estrategias alternativas | Pendiente |
@@ -727,3 +727,35 @@ Once pruebas unitarias usan frames ficticios. La demo autorizada de OBS-08 abri�
 ventana Tk propia con datos explícitamente ficticios, capturó y redactó una región,
 codificó el frame en memoria, invalidó la referencia y cerró sin guardar ni enviar la
 imagen. La suite pasa a 183 pruebas.
+
+## 23. Estado de implementación de v0.7
+
+v0.7 convierte un `RasterFrame` ya minimizado en `VisualElement` estructurados, pero
+no crea ni ejecuta acciones. Se eligió `gpt-5.6-luna` porque la ficha oficial confirma
+entrada de imagen, Responses y Structured Outputs, y conserva el costo bajo del
+proveedor textual existente. El envío visual requiere simultáneamente
+`DESKTOP_AGENT_AI_ENABLED=true` y `DESKTOP_AGENT_VISION_ENABLED=true`; si falta
+cualquiera, el proveedor ni siquiera se construye.
+
+`OpenAIVisionProvider` codifica la región BGRA como PNG en memoria, la incluye como
+data URL con detalle bajo, limita la salida, usa JSON Schema estricto y establece
+`store=False`. No adjunta el escritorio, el título de ventana, la orden original ni
+los nombres de accesibilidad. La llamada sigue envuelta por el mismo registro de
+tokens, costo y tope mensual de USD 1,00.
+
+El dominio valida nuevamente versión, estado, roles, etiquetas, cajas normalizadas,
+confianza, conteo y coherencia. Solo conserva candidatos con confianza mínima 0,80 y
+convierte sus cajas a coordenadas relativas a la captura. Los identificadores quedan
+ligados a observación, ventana y revisión.
+
+La accesibilidad se combina localmente cuando rol e intersección coinciden. Los nombres
+marcados sensibles se eliminan. Todo texto visual o accesible sigue siendo contenido
+no confiable: el prompt exige no obedecerlo y el dominio rechaza resultados marcados o
+patrones locales de prompt injection con `CONTENT_INSTRUCTION`. Ningún resultado de
+visión puede saltarse `ActionExecutor`.
+
+La evaluación simulada cubre tres regiones ficticias y dos elementos esperados, con
+precisión, recall e IoU estructurales de 1,0. Esa cifra valida el contrato, la
+normalización y el evaluador con respuestas guionadas; no representa precisión real de
+`gpt-5.6-luna`. No hubo red, credencial ni captura real. Veintitrés pruebas nuevas
+elevan la suite a 206 casos.

@@ -35,6 +35,7 @@ python -m desktop_agent "poné en youtube qué tan malo puedo ser"
 python -m desktop_agent "detener youtube"
 python -m desktop_agent --plan "detener youtube luego detener youtube"
 python -m scripts.obs08_manual_check
+python -m scripts.vis08_simulated_check
 python -m unittest discover -s tests -v
 ```
 

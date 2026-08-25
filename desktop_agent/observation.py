@@ -2,6 +2,7 @@ import logging
 import struct
 import time
 import uuid
+import zlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -386,3 +387,32 @@ def encode_bmp(frame: RasterFrame) -> bytes:
         pixel_offset,
     )
     return file_header + info_header + frame.pixels
+
+
+def encode_png(frame: RasterFrame) -> bytes:
+    """Codifica un frame BGRA32 como PNG RGBA sin archivos temporales."""
+
+    rows = bytearray()
+    for y in range(frame.height):
+        rows.append(0)
+        row_start = y * frame.stride
+        for x in range(frame.width):
+            offset = row_start + x * 4
+            blue, green, red, alpha = frame.pixels[offset : offset + 4]
+            rows.extend((red, green, blue, alpha))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        payload = kind + data
+        return (
+            struct.pack(">I", len(data))
+            + payload
+            + struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
+        )
+
+    header = struct.pack(">IIBBBBB", frame.width, frame.height, 8, 6, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(rows), level=6))
+        + chunk(b"IEND", b"")
+    )
