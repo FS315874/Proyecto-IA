@@ -4,10 +4,11 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.9 — Bucle agente acotado**. Conserva el input
-confirmado de v0.8 y agrega una máquina finita que separa observación, decisión, acción
-y evaluación. Limita tiempo, observaciones, acciones, reintentos y ambigüedad; nunca
-inventa herramientas ni repite una acción sobre el mismo estado.
+La versión ejecutable actual es **v0.10 — Memoria procedural segura**. Conserva el
+bucle acotado de v0.9 y agrega recetas semánticas versionadas que solo se reutilizan
+después de éxito observable y aprobación explícita. Valida huella de aplicación,
+precondiciones, parámetros y allowlist antes de cualquier efecto; una incompatibilidad
+de aplicación, selector o contrato vuelve obsoleta la receta.
 
 ## Funcionalidades
 
@@ -123,6 +124,8 @@ mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas r
 v0.8 usa controles Win32 y mensajes dirigidos antes que mouse global. No agrega una
 dependencia y mantiene `Ctrl+Alt+Esc` como atajo de emergencia mientras el backend de
 input está activo.
+v0.9 y v0.10 usan solamente la biblioteca estándar. El bucle, las recetas, el almacén
+JSON local y sus puertos de ejecución/verificación no agregan servicios ni paquetes.
 
 ## Requisitos
 
@@ -190,7 +193,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.9.0 — escribí 'salir' para terminar.
+Desktop Agent v0.10.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -295,7 +298,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 235 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 256 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -410,6 +413,7 @@ desktop_agent/
 ├── parser.py
 ├── plans.py
 ├── playwright_backend.py
+├── recipes.py
 ├── usage_budget.py
 ├── vision.py
 ├── vision_config.py
@@ -430,8 +434,10 @@ docs/
 ├── V0.6_ARCHITECTURE.md
 ├── V0.7_ARCHITECTURE.md
 ├── V0.8_ARCHITECTURE.md
-└── V0.9_ARCHITECTURE.md
+├── V0.9_ARCHITECTURE.md
+└── V0.10_ARCHITECTURE.md
 scripts/
+├── recipe10_qa_check.py
 └── web07_manual_check.py
 tests/
 ```
@@ -458,6 +464,8 @@ tests/
   ventana/foco exactos, fallback ligado a observación, bloqueos y emergencia.
 - **v0.9 — Bucle agente acotado:** completada; máquina de estados, evidencia,
   cancelación, límites, reintentos transitorios y abandono ante ambigüedad.
+- **v0.10 — Memoria procedural segura:** completada; recetas aprobadas, huella de
+  aplicación, precondiciones, verificaciones, recuperación declarada e invalidación.
 
 ## Autoría y componentes externos
 
@@ -476,6 +484,7 @@ Construido en el proyecto:
 - validación, evaluación y adaptador opt-in para interpretación visual;
 - controlador y backend Win32 para input confirmado y acotado;
 - orquestador observe-decide-act-evaluate finito y auditable;
+- catálogo, persistencia y runner de recetas semánticas aprobadas;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

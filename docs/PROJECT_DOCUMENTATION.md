@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 235 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 256 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -461,7 +461,7 @@ para saltar versiones o decisiones del usuario.
 | v0.7 | Visión | Completada |
 | v0.8 | Mouse y teclado con límites | Completada |
 | v0.9 | Bucle observe-plan-act-evaluate | Completada |
-| v0.10 | Recuperación y estrategias alternativas | Pendiente |
+| v0.10 | Recuperación y estrategias alternativas | Completada |
 | v0.11 | Confirmaciones y permisos completos | Pendiente |
 | v0.12 | Interfaz de escritorio | Pendiente |
 | v0.13 | Entrada por voz | Pendiente |
@@ -822,3 +822,30 @@ timeout, allowlist, evidencia y errores redactados. La demo de QA usa una aplica
 memoria con datos ficticios: observa vacío, llena, verifica progreso, observa lleno,
 envía y verifica éxito. Termina con dos observaciones y dos acciones, sin red, UI ni
 efectos externos. La suite suma 235 pruebas.
+
+## 26. Estado de implementación de v0.10
+
+v0.10 agrega recetas semánticas versionadas sin conectarlas todavía a una aplicación
+real. Cada receta identifica aplicación, versión y hash de contrato; declara objetivo,
+precondiciones, pasos, herramientas, operaciones, destinos semánticos, parámetros por
+nombre, verificaciones y recuperaciones permitidas. Las operaciones por coordenadas y
+los nombres de parámetros de credenciales se rechazan por contrato.
+
+`RecipeCatalog` separa propuesta, validación y aprobación. La ausencia de excepción no
+aprueba nada: la evidencia debe declarar éxito observable y coincidir exactamente con
+receta, revisión, aplicación y pasos. Solo la revisión aprobada y registrada con huella
+exacta puede reutilizarse. Un cambio de versión o contrato la marca `STALE`; también
+puede deshabilitarse explícitamente.
+
+`RecipeStore` usa JSON con esquema cerrado y reemplazo atómico. Persiste estructura e
+IDs de evidencia, no valores de ejecución, screenshots, respuestas, contraseñas ni
+tokens. `RecipeRunner` valida el catálogo, todas las precondiciones, el conjunto exacto
+de parámetros y la allowlist completa antes del primer efecto. Entrega a cada acción
+solo los parámetros que declaró y registra IDs, causa, resultado y duración.
+
+Cada paso requiere verificación observable. Ante una causa transitoria se permite una
+sola alternativa previamente declarada; no se inventan acciones ni se expande la
+allowlist. Los cambios de selector o contrato invalidan la receta y detienen el flujo.
+Veintiuna pruebas cubren contratos, persistencia, aprobación, privacidad, recuperación,
+allowlist e invalidación. El QA ficticio fuerza una recuperación exitosa y comprueba
+que un valor privado de runtime no aparece en disco. La suite suma 256 pruebas.

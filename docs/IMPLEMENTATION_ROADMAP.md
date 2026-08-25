@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.9 completada y v0.10 habilitada.
+> Estado comprobado del producto: v0.10 completada y v0.11 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -204,8 +204,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.7 | Interpretación visual | `COMPLETADO` | Ninguno. |
 | v0.8 | Mouse y teclado con límites | `COMPLETADO` | Ninguno. |
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `COMPLETADO` | Ninguno. |
-| v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Ejecutar RECIPE-01. |
-| v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Solo después de cerrar v0.10. |
+| v0.10 | Recuperación y memoria procedural | `COMPLETADO` | Ninguno. |
+| v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Ejecutar POLICY-01. |
 | v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Solo después de cerrar v0.11. |
 | v0.13 | Entrada por voz | `PENDIENTE` | Solo después de cerrar v0.12. |
 | v0.14 | Control remoto propio | `PENDIENTE` | Solo después de cerrar v0.13. |
@@ -861,6 +861,25 @@ modelo ni guardar información privada innecesaria.
 - invalidar ante cambios de aplicación o selectores;
 - no guardar coordenadas como mecanismo principal.
 
+### Secuencia
+
+1. `RECIPE-01` — `COMPLETADO`: contrato versionado con aplicación, huella, objetivo,
+   precondiciones, pasos semánticos, verificación y estado explícito.
+2. `RECIPE-02` — `COMPLETADO`: propuesta y aprobación separadas; la aprobación exige
+   evidencia de éxito observable, revisión, aplicación y pasos exactos.
+3. `RECIPE-03` — `COMPLETADO`: almacén JSON estricto y atómico que persiste IDs y
+   estructura, nunca argumentos de ejecución, capturas o credenciales.
+4. `RECIPE-04` — `COMPLETADO`: selección solo de recetas aprobadas con huella exacta;
+   cambios de versión o contrato marcan candidatos como obsoletos.
+5. `RECIPE-05` — `COMPLETADO`: runner valida catálogo, precondiciones, parámetros y
+   allowlist completa antes de ejecutar el primer paso.
+6. `RECIPE-06` — `COMPLETADO`: cada acción requiere verificación observable y solo
+   una alternativa declarada para la causa transitoria puede recuperar el paso.
+7. `RECIPE-07` — `COMPLETADO`: fallos de selector, contrato o backend invalidan la
+   receta; logs y evidencia omiten valores de ejecución y detalles internos.
+8. `RECIPE-08` — `COMPLETADO`: veintiuna pruebas y QA ficticio verifican aprobación,
+   persistencia, privacidad, recuperación e invalidación; suite total de 256 casos.
+
 ## 15. v0.11 — Confirmaciones y permisos completos
 
 ### Objetivo de versión
@@ -1100,7 +1119,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `RECIPE-01 — Contrato de receta` de v0.10. El usuario
+El primer paso no completado es `POLICY-01 — Taxonomía por efecto` de v0.11. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
