@@ -197,7 +197,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-02. |
+| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-03. |
 | v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
@@ -489,10 +489,20 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-02 — Contrato del adaptador de navegador
 
-- Estado: `PENDIENTE`.
-- Definir operaciones semánticas; no aceptar selectores arbitrarios del modelo.
-- Inyectar navegador, página, reloj y esperas para tests.
-- Definir timeout y cierre de recursos.
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `BrowserAdapter` expone solo `open_site`, `search`, `select_first_result`,
+    `start_playback`, `read_playback` y `close`;
+  - la interfaz pública recibe claves de sitio y consultas, nunca URL, selector,
+    JavaScript ni argumentos de lanzamiento;
+  - destinos resueltos desde el catálogo y consultas normalizadas con máximo de 200
+    caracteres;
+  - resultados, observaciones y errores son estructuras validadas e inmutables;
+  - límites de navegación, operación, verificación y flujo son positivos y acotados;
+  - navegador, contexto, página, reloj y espera son puertos inyectables;
+  - 17 tests específicos y suite completa de 97 tests aprobados, sin navegador real.
+- Límite: WEB-02 no implementa Playwright, selectores, herramienta registrada ni
+  navegación; eso comienza de forma acotada en WEB-03.
 
 #### WEB-03 — Herramienta de navegación segura
 
@@ -916,9 +926,9 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-02 — Contrato del adaptador de navegador` de
+El primer paso no completado es `WEB-03 — Herramienta de navegación segura` de
 v0.4.
 
-Cuando el usuario solicite continuar se deberá definir e implementar únicamente el
-contrato semántico reemplazable, sus errores, límites y tests unitarios. WEB-02 no
-autoriza todavía navegar por YouTube ni abrir un navegador real.
+Cuando el usuario solicite continuar se deberá implementar la herramienta registrada
+contra un backend falso, con allowlist, cierre y logging. WEB-03 no autoriza todavía
+el flujo real de YouTube ni abrir un navegador real.

@@ -328,7 +328,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 80 pruebas unitarias, todas sin red ni efectos reales.
+Estado actual: 97 pruebas unitarias, todas sin red ni efectos reales.
 
 ## 13. Evolución por versiones
 
@@ -449,7 +449,7 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-01 completado |
+| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-02 completado |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -516,5 +516,11 @@ sin reutilizar el perfil personal de Chrome.
 La dependencia quedó declarada y se verificó localmente con Python 3.13. Playwright
 descargó Chrome for Testing 151.0.7922.34, el shell headless correspondiente, FFmpeg y
 el verificador de dependencias; no instaló Firefox ni WebKit. La caché observada ocupó
-aproximadamente 701 MiB. Este paso no lanzó un navegador ni implementó herramientas,
-selectores o navegación. El próximo incremento autorizado por el roadmap es WEB-02.
+aproximadamente 701 MiB.
+
+WEB-02 agregó `desktop_agent/browser_contract.py`. El contrato define operaciones
+semánticas, límites locales, resolución de sitios desde catálogo, normalización de
+consultas tratadas como datos, observaciones de página/búsqueda/reproducción y errores
+estructurados. También exige navegador, contexto, página, reloj y espera inyectables.
+Su interfaz pública no acepta URLs, selectores ni scripts. Las 17 pruebas nuevas usan
+dobles y no importan, lanzan ni controlan Playwright. El próximo paso es WEB-03.

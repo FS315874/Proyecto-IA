@@ -220,7 +220,8 @@ python -m unittest discover -s tests -v
 
 Las pruebas usan navegadores, buscadores de ejecutables e iniciadores de procesos
 falsos. Por eso pueden verificar las herramientas sin abrir ventanas reales.
-El cierre de v0.3 contiene 80 pruebas locales aprobadas.
+El cierre de v0.3 contiene 80 pruebas locales aprobadas. WEB-02 agregó 17 pruebas de
+contrato; la suite actual contiene 97.
 
 Cobertura funcional actual:
 
@@ -243,7 +244,9 @@ Cobertura funcional actual:
 - acumulación y persistencia mensual, cambio de mes, reserva previa y bloqueo por
   presupuesto o registro inválido;
 - aceptación simulada del comando exacto, tres frases naturales acordadas, destino
-  fuera del catálogo, proveedor deshabilitado, fallo y límite mensual.
+  fuera del catálogo, proveedor deshabilitado, fallo y límite mensual;
+- contrato semántico de navegador, destinos canónicos, consultas acotadas,
+  observaciones estructuradas e inyección de efectos sin lanzar Playwright.
 
 ## Logging
 
@@ -287,6 +290,7 @@ catálogo local permitido.
 desktop_agent/
 ├── __main__.py
 ├── budgeted_provider.py
+├── browser_contract.py
 ├── catalog.py
 ├── cli.py
 ├── executor.py
@@ -314,7 +318,8 @@ tests/
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
-  WEB-01 completado; dependencia y Chromium preparados, sin adaptador ni control real.
+  WEB-01 y WEB-02 completados; dependencia, Chromium y contrato preparados, sin
+  adaptador concreto ni control real.
 
 ## Autoría y componentes externos
 
