@@ -641,8 +641,36 @@ la CLI o usar otras herramientas no lanza Playwright.
 parsing, registro, bypass del proveedor, ciclo de vida de una orden y limpieza al salir;
 la suite completa suma 144 casos. WEB-08 y v0.4 quedan completados.
 
-El próximo incremento acordado es v0.4.1 — Local Control Console. Su objetivo será
-eliminar a Codex como intermediario cotidiano mediante un proceso local persistente y
-una interfaz mínima con entrada, estado, métricas, detención normal y control de
-emergencia. La tecnología de interfaz requiere una decisión separada antes de agregar
-dependencias.
+Con WEB-08, v0.4 queda cerrada. El incremento siguiente, v0.4.1, se documenta a
+continuación.
+
+## 20. Estado de implementación de v0.4.1
+
+El usuario aprobó una interfaz nativa Tkinter/ttk. Se descartó la interfaz web local
+para este incremento porque abriría un puerto y exigiría controles HTTP adicionales
+sin ser necesarios para una consola que solo opera en el equipo. La decisión completa
+está en [V0.4.1_ARCHITECTURE.md](V0.4.1_ARCHITECTURE.md).
+
+`CommandProcessor` extrae de la CLI el flujo interpretar-validar-ejecutar y devuelve
+un resultado estructurado sin cambiar los mensajes ni los logs existentes.
+`LocalAgentController` mantiene ese procesador, el ejecutor y el controlador de
+reproducción durante toda la sesión. Un único worker serializa órdenes y conserva la
+afinidad de hilo requerida por Playwright; la ventana solo envía solicitudes y consume
+eventos.
+
+La consola se abre con `python -m desktop_agent --gui`. Incluye entrada, ejecución,
+estado, resultados, detención, emergencia, cierre, etapa activa, tokens, costo,
+presupuesto mensual y tiempos de cola, ejecución y total. La emergencia cancela lo
+pendiente inmediatamente y solicita la detención del efecto activo en el siguiente
+límite seguro. No se mata un hilo ni se usa Playwright desde un hilo ajeno.
+
+La instancia única usa un lock por usuario mantenido por Windows. El cierre cancela
+pendientes, detiene una reproducción activa, espera el worker y libera el lock. La UI
+no abre sockets, no registra órdenes y no agrega una dependencia de paquete.
+
+La distribución portable usada hasta v0.4 era la edición embebida de CPython y no
+incluía Tcl/Tk. Se verificó el instalador oficial de Python 3.13.15 mediante su SHA-256
+publicado, se instaló para el usuario sin modificar PATH y se comprobó Tk 8.6. La
+suite completa suma 154 pruebas. Un smoke real creó la ventana, actualizó el layout y
+cerró el worker; el control visible automatizado no recibió a tiempo permiso de
+Windows y fue omitido de forma segura.

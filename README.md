@@ -4,11 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.4 — Browser Automation**. Conserva el intérprete
-híbrido y el presupuesto local de IA de v0.3, y agrega un flujo determinista para
-buscar, reproducir y detener contenido de YouTube mediante Playwright. Chromium se
-ejecuta en un contexto temporal aislado; la consulta se trata como datos y la sesión
-permanece activa hasta recibir una detención explícita.
+La versión ejecutable actual es **v0.4.1 — Local Control Console**. Conserva la
+automatización verificada de YouTube de v0.4 y agrega una ventana local persistente
+para enviar órdenes, observar estado, latencia y uso de IA, detener la reproducción y
+cerrar el agente sin usar Codex como intermediario cotidiano.
 
 ## Funcionalidades
 
@@ -44,7 +43,8 @@ detener youtube
 
 ```text
 Usuario
-  -> CLI
+  -> CLI o ventana Tkinter/ttk
+  -> controlador local persistente y cola serial
   -> HybridInterpreter
        ├── parser determinista
        └── presupuesto mensual -> ProposalProvider opcional
@@ -94,6 +94,7 @@ en [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
 - `logging` para el registro persistente.
 - `unittest` para las pruebas automatizadas.
 - Playwright para la automatización DOM acotada de v0.4.
+- Tkinter/ttk para la consola nativa local de v0.4.1.
 
 El camino determinista continúa usando solo la biblioteca estándar. v0.3 declara
 `openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
@@ -102,12 +103,16 @@ WEB-01 de v0.4 declara `playwright==1.62.0` y selecciona únicamente Chromium co
 contextos temporales aislados. WEB-02 a WEB-04 agregan el contrato, la política, el
 adaptador y un backend Playwright de YouTube. WEB-08 registra el controlador en la CLI
 sin iniciar Chromium hasta recibir una orden de reproducción.
+v0.4.1 no agrega una dependencia de paquete: Tkinter pertenece a una instalación
+completa de CPython. El controlador y la UI comparten el mismo núcleo que la CLI.
 
 ## Requisitos
 
 - Windows 10 u 11 para `open_application`.
 - Windows 11 o posterior para la versión seleccionada de Playwright.
 - Python 3.10 o posterior.
+- Una distribución completa de Python con Tcl/Tk para usar `--gui`. El paquete
+  embebido de Windows no incluye Tkinter.
 - Un navegador predeterminado configurado.
 - Las aplicaciones que se quieran abrir deben estar instaladas.
 
@@ -145,6 +150,19 @@ instalaron Firefox ni WebKit. Actualizar Playwright puede requerir repetir este 
 
 ## Uso
 
+Iniciá la consola gráfica local:
+
+```powershell
+python -m desktop_agent --gui
+```
+
+La ventana mantiene un único controlador durante toda la sesión. Incluye entrada de
+órdenes, estado activo, resultado, latencia total/cola/ejecución, tokens, costo,
+presupuesto mensual, detención normal, detención de emergencia y cierre seguro. Una
+segunda instancia se rechaza mediante un lock por usuario. La emergencia cancela
+órdenes pendientes y detiene la reproducción al alcanzar el siguiente límite seguro;
+no interrumpe a mitad de una llamada bloqueante de Playwright.
+
 Iniciá el modo interactivo desde la raíz del proyecto:
 
 ```powershell
@@ -154,7 +172,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.4.0 — escribí 'salir' para terminar.
+Desktop Agent v0.4.1 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -236,7 +254,9 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 144 pruebas locales.
+La suite actual contiene 154 pruebas locales. Además se comprobó con Tcl/Tk real que
+la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
+Chromium ni ejecutar una orden.
 
 WEB-07 dispone además de un runner manual separado. Estos comandos abren Chromium
 visible y usan red; no forman parte de la suite normal:

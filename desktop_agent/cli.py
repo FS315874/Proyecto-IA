@@ -5,11 +5,10 @@ from typing import Protocol, runtime_checkable
 
 from desktop_agent import __version__
 from desktop_agent.budgeted_provider import BudgetedProposalProvider
-from desktop_agent.executor import ActionExecutionError, ActionExecutor
+from desktop_agent.command_processor import CommandProcessor
+from desktop_agent.executor import ActionExecutor
 from desktop_agent.interpretation import (
     HybridInterpreter,
-    InterpretationResult,
-    InterpretationStatus,
     ProposalProvider,
     ProposalProviderError,
 )
@@ -120,78 +119,6 @@ def build_interpreter(
     )
 
 
-def _optional_log_value(value: object | None) -> object:
-    return "none" if value is None else value
-
-
-def _log_interpretation(
-    logger: logging.Logger,
-    result: InterpretationResult,
-) -> None:
-    usage = result.usage
-    estimated_cost = (
-        "none"
-        if result.estimated_cost_usd is None
-        else f"{result.estimated_cost_usd:.10f}"
-    )
-    monthly = result.monthly_usage
-    logger.info(
-        "Interpretation: path=%s status=%s duration_ms=%.3f "
-        "provider_configured=%s provider=%s model=%s "
-        "input_tokens=%s output_tokens=%s total_tokens=%s "
-        "estimated_cost_usd=%s monthly=%s monthly_requests=%s "
-        "monthly_input_tokens=%s monthly_output_tokens=%s "
-        "monthly_total_tokens=%s monthly_estimated_cost_usd=%s "
-        "monthly_budget_usd=%s monthly_remaining_usd=%s "
-        "monthly_unmetered_requests=%s monthly_pending_reservations=%s",
-        result.path.value,
-        result.status.value,
-        result.duration_ms,
-        str(result.provider_configured).lower(),
-        _optional_log_value(result.provider_name),
-        _optional_log_value(result.provider_model),
-        _optional_log_value(usage.input_tokens if usage else None),
-        _optional_log_value(usage.output_tokens if usage else None),
-        _optional_log_value(usage.total_tokens if usage else None),
-        estimated_cost,
-        _optional_log_value(monthly.month if monthly else None),
-        _optional_log_value(monthly.request_count if monthly else None),
-        _optional_log_value(monthly.input_tokens if monthly else None),
-        _optional_log_value(monthly.output_tokens if monthly else None),
-        _optional_log_value(monthly.total_tokens if monthly else None),
-        (
-            "none"
-            if monthly is None
-            else f"{monthly.estimated_cost_usd:.10f}"
-        ),
-        "none" if monthly is None else f"{monthly.budget_usd:.2f}",
-        "none" if monthly is None else f"{monthly.remaining_usd:.10f}",
-        _optional_log_value(
-            monthly.unmetered_request_count if monthly else None
-        ),
-        _optional_log_value(
-            monthly.pending_reservation_count if monthly else None
-        ),
-    )
-
-
-def _format_monthly_usage(result: InterpretationResult) -> str | None:
-    monthly = result.monthly_usage
-    if monthly is None:
-        return None
-
-    budget_text = f"{monthly.budget_usd:.6f}".rstrip("0").rstrip(".")
-    if "." not in budget_text:
-        budget_text += ".00"
-    elif len(budget_text.rsplit(".", 1)[1]) == 1:
-        budget_text += "0"
-    return (
-        f"Uso IA {monthly.month}: {monthly.total_tokens} tokens, "
-        f"USD {monthly.estimated_cost_usd:.6f} de "
-        f"USD {budget_text}."
-    )
-
-
 def process_command(
     command: str,
     executor: ActionExecutor,
@@ -199,48 +126,11 @@ def process_command(
     output: Output = print,
     interpreter: HybridInterpreter | None = None,
 ) -> bool:
-    logger.info("Command received")
-    output("Entendiendo comando...")
-
     active_interpreter = (
         interpreter if interpreter is not None else HybridInterpreter()
     )
-    interpretation = active_interpreter.interpret_detailed(command)
-    _log_interpretation(logger, interpretation)
-    monthly_usage_message = _format_monthly_usage(interpretation)
-    if monthly_usage_message is not None:
-        output(monthly_usage_message)
-
-    if interpretation.status is InterpretationStatus.BUDGET_EXCEEDED:
-        logger.info("Status: AI_BUDGET_EXCEEDED")
-        output("Límite mensual de IA alcanzado; no se realizó la llamada.")
-        return False
-    if interpretation.status is InterpretationStatus.USAGE_TRACKING_ERROR:
-        logger.info("Status: AI_USAGE_TRACKING_ERROR")
-        output("No se pudo verificar el consumo de IA; no se ejecutó ninguna acción.")
-        return False
-
-    action = interpretation.action
-    if action is None:
-        logger.info("Status: UNSUPPORTED_COMMAND")
-        output("Comando no soportado todavía.")
-        return False
-
-    logger.info("Intent: %s", action.intent.value)
-    if "url" in action.arguments:
-        logger.info("URL: %s", action.arguments["url"])
-    if "name" in action.arguments:
-        logger.info("Application: %s", action.arguments["name"])
-
-    output(f"Ejecutando {action.tool_name}...")
-    try:
-        result = executor.execute(action)
-    except ActionExecutionError as error:
-        output(f"Error: {error}")
-        return False
-
-    output(result.message)
-    return True
+    processor = CommandProcessor(executor, active_interpreter, logger)
+    return processor.execute(command, output).success
 
 
 def _run_interactive(
@@ -308,6 +198,11 @@ def _hold_one_shot_playback(
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
+
+    if arguments == ["--gui"]:
+        from desktop_agent.tk_app import run_gui
+
+        return run_gui()
 
     try:
         logger = configure_logging()

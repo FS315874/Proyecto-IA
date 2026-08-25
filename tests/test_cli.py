@@ -486,11 +486,22 @@ class V04CliIntegrationTests(unittest.TestCase):
         self.assertEqual(
             output,
             [
-                "Desktop Agent v0.4.0 — escribí 'salir' para terminar.",
+                "Desktop Agent v0.4.1 — escribí 'salir' para terminar.",
                 "Reproducción detenida.",
                 "Hasta luego.",
             ],
         )
+
+
+class GuiDispatchTests(unittest.TestCase):
+    def test_gui_flag_dispatches_without_building_cli_runtime(self) -> None:
+        with patch("desktop_agent.tk_app.run_gui", return_value=7) as run_gui:
+            from desktop_agent.cli import main
+
+            result = main(["--gui"])
+
+        self.assertEqual(result, 7)
+        run_gui.assert_called_once_with()
 
 
 if __name__ == "__main__":

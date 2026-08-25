@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.4 completada y v0.4.1 pendiente de decisión.
+> Estado comprobado del producto: v0.4.1 completada y v0.5 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -198,8 +198,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
 | v0.4 | Automatización de navegador | `COMPLETADO` | Ninguno. |
-| v0.4.1 | Consola local mínima | `PENDIENTE` | Ejecutar UI-01. |
-| v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4.1. |
+| v0.4.1 | Consola local mínima | `COMPLETADO` | Ninguno. |
+| v0.5 | Tareas de varios pasos | `PENDIENTE` | Ejecutar PLAN-01. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
 | v0.8 | Mouse y teclado con límites | `PENDIENTE` | Solo después de cerrar v0.7. |
@@ -642,41 +642,57 @@ agente. No agrega voz, acceso remoto, visión ni automatización general.
 
 #### UI-01 — Decisión de arquitectura
 
-- Estado: `PENDIENTE`.
-- Checkpoint: `DECISION_USUARIO`.
-- Comparar una interfaz nativa mínima con una interfaz web local, considerando
-  dependencia, distribución, latencia, accesibilidad y seguridad.
-- Definir proceso propietario, cierre, instancia única y comunicación local.
+- Estado: `COMPLETADO`.
+- Checkpoint resuelto: `DECISION_USUARIO`; el usuario aprobó la opción A el
+  2026-08-25 y autorizó continuar automáticamente hasta v0.14.
+- Decisión: Tkinter/ttk, sin servidor ni puerto local. Un proceso Python es dueño del
+  ejecutor, intérprete y navegador; la UI vive en el hilo principal y se comunica con
+  un worker persistente mediante una cola local.
+- Instancia única: lock de archivo mantenido por el sistema y acotado al usuario.
+- Cierre: cancela pendientes, solicita detención, cierra Playwright en su hilo
+  propietario y libera el lock. La distribución embebida de Python no trae Tcl/Tk,
+  por lo que se verificó una instalación completa de CPython 3.13.15 con Tk 8.6.
+- Evidencia: `docs/V0.4.1_ARCHITECTURE.md`.
 
 #### UI-02 — Controlador local persistente
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `AUTOMATICO`.
 - Mantener herramientas y sesión de navegador sin reconstruir el agente por orden.
 - Aceptar únicamente comandos estructurados a través del mismo núcleo y ejecutor.
+- Evidencia: `CommandProcessor` desacoplado y `LocalAgentController` con worker único,
+  cola acotada por entrada y eventos estructurados.
 
 #### UI-03 — Interfaz mínima
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `AUTOMATICO`.
 - Incluir entrada, ejecutar, estado, resultado, detener y control de emergencia.
+- Evidencia: `TkDesktopAgentApp` y comando `python -m desktop_agent --gui`.
 
 #### UI-04 — Latencia, uso y límites visibles
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `AUTOMATICO`.
 - Mostrar tiempo extremo a extremo, etapa activa, tokens, costo y presupuesto mensual.
+- Evidencia: la UI muestra etapa, total, cola, ejecución y snapshot mensual agregado.
 
 #### UI-05 — Prueba de usuario
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `PRUEBA_USUARIO`.
 - Comparar latencia fría y caliente y comprobar ejecución, reemplazo, detención y salida.
+- Validación: tests deterministas comprobaron recepción, ejecución serial, latencia,
+  reemplazo de uso, detención, emergencia y cierre. Un smoke con Tk/Tcl real creó y
+  cerró la ventana. La automatización visible adicional no obtuvo a tiempo permiso de
+  control de Windows y se omitió sin dejar el proceso abierto.
 
 #### UI-06 — Cierre de v0.4.1
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO`.
 - Checkpoint: `CIERRE_VERSION`.
+- Resultado: versión `0.4.1`, 154 pruebas locales, documentación sincronizada y sin
+  llamadas externas de IA.
 
 ## 9. v0.5 — Tareas de varios pasos
 
@@ -1058,8 +1074,8 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `UI-01 — Decisión de arquitectura` de v0.4.1.
-
-Es un checkpoint `DECISION_USUARIO`: el próximo turno debe presentar alternativas
-concretas para interfaz nativa mínima o interfaz web local y detenerse antes de agregar
-una dependencia. v0.5 no se inicia hasta cerrar v0.4.1.
+El primer paso no completado es `PLAN-01 — Contrato de planes` de v0.5. El usuario
+autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
+hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
+exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
+entornos locales.
