@@ -197,7 +197,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-03. |
+| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-04. |
 | v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
@@ -506,10 +506,19 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-03 — Herramienta de navegación segura
 
-- Estado: `PENDIENTE`.
-- Permitir solo destinos definidos por catálogo o política local.
-- Aislar entorno, extensiones y acceso a archivos cuando sea posible.
-- Registrar intención, destino canónico, duración y resultado.
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `BrowserSecurityPolicy` limita la sesión a YouTube, una página y un contexto no
+    persistente, sin descargas, extensiones ni acceso a archivos;
+  - `SafeBrowserAdapter` aplica allowlist, orden de operaciones, tiempos acotados,
+    errores estructurados y cierre idempotente sobre puertos inyectables;
+  - `BrowserNavigationTool` recibe una clave de catálogo, puede registrarse en
+    `ActionExecutor` y siempre intenta cerrar contexto y navegador;
+  - los logs conservan intención, destino canónico, duración, resultado y código de
+    error sin guardar consultas, títulos ni detalles internos del backend;
+  - 16 tests específicos y suite completa de 113 tests aprobados, sin navegador real.
+- Límite: WEB-03 no agrega selectores, backend Playwright, registro en la CLI ni el
+  flujo real de YouTube; eso corresponde a WEB-04.
 
 #### WEB-04 — Flujo vertical de YouTube
 
@@ -926,9 +935,10 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-03 — Herramienta de navegación segura` de
+El primer paso no completado es `WEB-04 — Flujo vertical de YouTube` de
 v0.4.
 
-Cuando el usuario solicite continuar se deberá implementar la herramienta registrada
-contra un backend falso, con allowlist, cierre y logging. WEB-03 no autoriza todavía
-el flujo real de YouTube ni abrir un navegador real.
+Cuando el usuario solicite continuar se deberá implementar el backend Playwright
+acotado y el flujo de búsqueda, primer resultado permitido e inicio de reproducción.
+La implementación normal usará dobles; cualquier prueba con red o navegador visible
+requerirá autorización separada.

@@ -10,8 +10,9 @@ adaptador opt-in para OpenAI. El proveedor permanece deshabilitado por defecto.
 También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 por
 defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
 no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
-La rama de trabajo de v0.4 completó únicamente la selección e instalación de
-Playwright; todavía no implementa ni expone automatización de navegador.
+La rama de trabajo de v0.4 ya incorporó la base de Playwright, el contrato semántico
+y una herramienta de navegación segura probada con un backend falso. Todavía no
+existe un backend Playwright concreto ni se abre o controla un navegador real.
 
 ## Funcionalidades
 
@@ -92,7 +93,9 @@ El camino determinista continúa usando solo la biblioteca estándar. v0.3 decla
 `openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
 fallback, por lo que los comandos deterministas no inicializan el SDK.
 WEB-01 de v0.4 declara `playwright==1.62.0` y selecciona únicamente Chromium con
-contextos temporales aislados. Todavía no existe un adaptador que lo lance.
+contextos temporales aislados. WEB-02 y WEB-03 agregan el contrato, la política y el
+adaptador seguro sobre puertos inyectables, pero todavía no existe una implementación
+que lance Playwright.
 
 ## Requisitos
 
@@ -290,6 +293,7 @@ catálogo local permitido.
 desktop_agent/
 ├── __main__.py
 ├── budgeted_provider.py
+├── browser_adapter.py
 ├── browser_contract.py
 ├── catalog.py
 ├── cli.py
@@ -301,7 +305,8 @@ desktop_agent/
 ├── usage_budget.py
 └── tools/
     ├── applications.py
-    └── browser.py
+    ├── browser.py
+    └── browser_automation.py
 docs/
 ├── IMPLEMENTATION_ROADMAP.md
 ├── PROJECT_DOCUMENTATION.md
@@ -318,8 +323,8 @@ tests/
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
-  WEB-01 y WEB-02 completados; dependencia, Chromium y contrato preparados, sin
-  adaptador concreto ni control real.
+  WEB-01 a WEB-03 completados; dependencia, Chromium, contrato y herramienta segura
+  preparados con dobles, sin backend Playwright ni control real.
 
 ## Autoría y componentes externos
 
@@ -330,6 +335,7 @@ Construido en el proyecto:
 - catálogo de destinos permitidos;
 - registro y ejecución de herramientas;
 - herramientas de navegador y aplicaciones;
+- contrato, política y adaptador semántico de navegación segura;
 - adaptador seguro de propuestas para OpenAI;
 - CLI, logging, manejo de errores y pruebas.
 

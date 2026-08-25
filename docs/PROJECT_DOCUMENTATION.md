@@ -404,9 +404,9 @@ validación. Las herramientas del sistema también fueron reemplazadas por doble
 - El presupuesto es una barrera local, no reemplaza la facturación de OpenAI. El
   archivo no coordina varias instancias ejecutándose en paralelo; la v0.3 presupone
   una única instancia activa.
-- Playwright y Chromium están instalados como base de v0.4, pero todavía no existe un
-  adaptador ni control de navegador. Tampoco hay screenshots, visión, mouse, teclado
-  ni memoria.
+- Playwright y Chromium están instalados como base de v0.4 y existe un adaptador
+  semántico probado con dobles, pero todavía no hay backend Playwright ni control de
+  navegador real. Tampoco hay screenshots, visión, mouse, teclado ni memoria.
 - La política de confirmación todavía no tiene interfaz; por eso todo riesgo no
   seguro se bloquea.
 
@@ -449,7 +449,7 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-02 completado |
+| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-03 completado |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -473,6 +473,7 @@ Construido en el proyecto:
 - parser y catálogo;
 - registro y ejecutor;
 - herramientas de navegador y aplicaciones;
+- contrato, política y adaptador semántico de navegación segura;
 - CLI, logging, errores y tests.
 
 Tecnología externa:
@@ -523,4 +524,17 @@ semánticas, límites locales, resolución de sitios desde catálogo, normalizac
 consultas tratadas como datos, observaciones de página/búsqueda/reproducción y errores
 estructurados. También exige navegador, contexto, página, reloj y espera inyectables.
 Su interfaz pública no acepta URLs, selectores ni scripts. Las 17 pruebas nuevas usan
-dobles y no importan, lanzan ni controlan Playwright. El próximo paso es WEB-03.
+dobles y no importan, lanzan ni controlan Playwright.
+
+WEB-03 agregó `desktop_agent/browser_adapter.py` y
+`desktop_agent/tools/browser_automation.py`. La política local permite únicamente
+YouTube, una sola página y un contexto no persistente; bloquea descargas, extensiones
+y acceso a archivos. El adaptador valida el orden de cada operación, convierte
+timeouts y fallos del backend en errores seguros, y registra operación, destino
+canónico, duración, estado y código sin consultas, títulos ni detalles externos.
+
+La herramienta es registrable en `ActionExecutor`, recibe solo una clave de catálogo
+y siempre intenta cerrar contexto y navegador. Las 16 pruebas nuevas usan un backend
+falso y cubren allowlist, estado, errores, redacción, cierre y registro; la suite
+completa suma 113 pruebas. La CLI no registra todavía la herramienta y el proyecto no
+inició Playwright ni realizó navegación real. El próximo paso es WEB-04.

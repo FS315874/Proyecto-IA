@@ -15,6 +15,7 @@ class RiskLevel(str, Enum):
 class Intent(str, Enum):
     OPEN_URL = "OPEN_URL"
     OPEN_APPLICATION = "OPEN_APPLICATION"
+    BROWSER_NAVIGATION = "BROWSER_NAVIGATION"
 
 
 @dataclass(frozen=True)
