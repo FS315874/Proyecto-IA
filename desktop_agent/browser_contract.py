@@ -39,6 +39,7 @@ class BrowserErrorCode(str, Enum):
     TIMEOUT = "timeout"
     CONSENT_REQUIRED = "consent_required"
     NO_RESULTS = "no_results"
+    CONTENT_UNAVAILABLE = "content_unavailable"
     DOM_UNAVAILABLE = "dom_unavailable"
     PLAYBACK_NOT_CONFIRMED = "playback_not_confirmed"
     BACKEND_FAILURE = "backend_failure"
@@ -59,6 +60,10 @@ class BrowserConsentRequiredError(BrowserBackendCondition):
 
 class BrowserNoResultsError(BrowserBackendCondition):
     """El sitio no expone resultados que cumplan el criterio local."""
+
+
+class BrowserContentUnavailableError(BrowserBackendCondition):
+    """El contenido seleccionado no puede reproducirse en la página observada."""
 
 
 class BrowserDomUnavailableError(BrowserBackendCondition):

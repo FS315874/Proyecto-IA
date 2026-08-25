@@ -30,6 +30,8 @@ Comandos actualmente confirmados:
 ```powershell
 python -m desktop_agent
 python -m desktop_agent "abrir youtube"
+python -m desktop_agent "poné en youtube qué tan malo puedo ser"
+python -m desktop_agent "detener youtube"
 python -m unittest discover -s tests -v
 ```
 

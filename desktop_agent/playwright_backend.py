@@ -13,6 +13,7 @@ from desktop_agent.browser_adapter import BrowserSecurityPolicy, SafeBrowserAdap
 from desktop_agent.browser_contract import (
     BrowserAdapterDependencies,
     BrowserConsentRequiredError,
+    BrowserContentUnavailableError,
     BrowserDomUnavailableError,
     BrowserLimits,
     BrowserNoResultsError,
@@ -46,6 +47,7 @@ EMPTY_RESULTS_SELECTOR = (
 )
 RESULTS_READY_SELECTOR = f"{VIDEO_RESULT_SELECTOR}, {EMPTY_RESULTS_SELECTOR}"
 VIDEO_SELECTOR = "video.html5-main-video"
+UNAVAILABLE_SELECTOR = "ytd-player-error-message-renderer, #error-screen"
 PLAY_BUTTON_SELECTOR = "button.ytp-play-button"
 MUTE_BUTTON_SELECTOR = "button.ytp-mute-button"
 VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
@@ -243,6 +245,7 @@ class YouTubePlaywrightPage:
                 wait_until="domcontentloaded",
             )
             self._raise_if_consent_required()
+            self._raise_if_content_unavailable()
             return self._snapshot("/watch")
 
         return self._translate_errors(operation)
@@ -251,6 +254,7 @@ class YouTubePlaywrightPage:
         def operation() -> PlaybackSnapshot:
             timeout_ms = self._timeout_ms(timeout_seconds)
             self._raise_if_consent_required()
+            self._raise_if_content_unavailable()
             video = self._page.locator(VIDEO_SELECTOR).first
             video.wait_for(timeout=timeout_ms, state="attached")
             playback = self._read_playback(video, timeout_ms)
@@ -275,6 +279,7 @@ class YouTubePlaywrightPage:
         def operation() -> PlaybackSnapshot:
             timeout_ms = self._timeout_ms(self._observation_timeout_seconds)
             self._raise_if_consent_required()
+            self._raise_if_content_unavailable()
             video = self._page.locator(VIDEO_SELECTOR).first
             video.wait_for(timeout=timeout_ms, state="attached")
             return self._read_playback(video, timeout_ms)
@@ -286,6 +291,7 @@ class YouTubePlaywrightPage:
             return operation()
         except (
             BrowserConsentRequiredError,
+            BrowserContentUnavailableError,
             BrowserNoResultsError,
             BrowserDomUnavailableError,
         ):
@@ -328,6 +334,11 @@ class YouTubePlaywrightPage:
             if locator.count() > 0:
                 return locator.first
         raise BrowserDomUnavailableError
+
+    def _raise_if_content_unavailable(self) -> None:
+        unavailable = self._page.locator(UNAVAILABLE_SELECTOR)
+        if unavailable.count() > 0 and unavailable.first.is_visible(timeout=250.0):
+            raise BrowserContentUnavailableError
 
     def _required_locator(self, selector: str) -> LocatorPort:
         locator = self._page.locator(selector)

@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.3 completada y v0.4 en desarrollo.
+> Estado comprobado del producto: v0.4 completada y v0.4.1 pendiente de decisión.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -197,8 +197,9 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `EN_PROGRESO` | Ejecutar WEB-07. |
-| v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
+| v0.4 | Automatización de navegador | `COMPLETADO` | Ninguno. |
+| v0.4.1 | Consola local mínima | `PENDIENTE` | Ejecutar UI-01. |
+| v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4.1. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
 | v0.8 | Mouse y teclado con límites | `PENDIENTE` | Solo después de cerrar v0.7. |
@@ -573,12 +574,106 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-07 — Prueba manual
 
-- Estado: `PENDIENTE`.
+- Estado: `COMPLETADO` el 2026-08-25.
 - Checkpoint: `PRUEBA_USUARIO`.
 - Probar consulta válida, sin resultados, contenido no disponible y cancelación.
 - Medir tiempo total y separar interpretación, inicio del navegador y navegación.
+- Evidencia:
+  - un runner manual separado usa casos fijos o una consulta pública interactiva,
+    Chromium visible, red y un contexto efímero; siempre intenta cerrar y no registra
+    el texto buscado;
+  - el caso válido completó las cinco operaciones: arranque 1,47 s, navegación y
+    verificación 7,15 s, total 9,01 s;
+  - una segunda consulta elegida por el usuario también pasó: arranque 3,83 s,
+    navegación y verificación 7,10 s, total 11,38 s;
+  - la interpretación quedó como no aplicable porque el flujo no está en la CLI;
+  - YouTube devolvió un resultado para la consulta aleatoria de `no-results`, por lo
+    que la condición externa no se pudo reproducir;
+  - `Ctrl+C` interrumpió el escenario de cancelación, pero `close()` informó
+    `backend_failure`;
+  - el contrato actual no permite elegir un video específico para reproducir de
+    manera confiable el caso de contenido no disponible;
+  - el DOM confirmó reproducción, ausencia de mute y progreso, no salida física de
+    audio;
+  - la corrección conserva una sesión exitosa en `YouTubePlaybackTool` hasta `stop()`;
+    los fallos siguen cerrando de inmediato y una consulta inválida no interrumpe la
+    reproducción activa;
+  - el runner espera Enter en lugar de usar `Ctrl+C`; una repetición real permaneció
+    activa 8 min 43 s y cerró limpiamente en 0,29 s tras la señal explícita;
+  - cero resultados se valida con su marcador DOM y código `NO_RESULTS`;
+  - contenido no disponible se detecta mediante un marcador fijo y devuelve
+    `CONTENT_UNAVAILABLE` sin detalles externos;
+  - los negativos se reproducen localmente porque forzarlos contra YouTube sería
+    inestable o exigiría debilitar la interfaz pública;
+  - 4 tests nuevos y suite completa de 137 tests aprobados sin navegador real.
+- Decisión: WEB-07 aprobado; habilitar WEB-08.
 
 #### WEB-08 — Cierre de v0.4
+
+- Estado: `COMPLETADO` el 2026-08-25.
+- Checkpoint: `CIERRE_VERSION`.
+- Evidencia:
+  - `pyproject.toml`, el paquete y el banner declaran `0.4.0`;
+  - la CLI registra `play_youtube` y `stop_youtube` sin iniciar Chromium durante la
+    construcción;
+  - el parser acepta formas deterministas acotadas, normaliza la consulta como datos
+    y la rechaza antes de cualquier efecto si está vacía o supera 200 caracteres;
+  - el fast-path no invoca el proveedor de IA ni registra la consulta;
+  - el modo interactivo conserva la sesión entre órdenes y `salir` intenta cerrarla;
+  - el modo de una instrucción espera Enter antes del cierre;
+  - 7 tests nuevos y suite completa de 144 tests aprobados sin navegador real;
+  - la prueba real de WEB-07 demostró reproducción audible, persistencia y cierre.
+- Limitaciones aceptadas:
+  - no se comprueba la salida física mediante DOM;
+  - los selectores dependen de YouTube;
+  - `Ctrl+C` puede afectar Playwright en Windows; se prefieren las detenciones
+    estructuradas;
+  - la interfaz gráfica, voz y control remoto pertenecen a incrementos posteriores.
+
+## 8.1. v0.4.1 — Local Control Console
+
+### Objetivo de versión
+
+Eliminar a Codex como intermediario del uso cotidiano mediante un proceso local
+persistente y una interfaz mínima para enviar órdenes, observar estado y detener el
+agente. No agrega voz, acceso remoto, visión ni automatización general.
+
+### Pasos
+
+#### UI-01 — Decisión de arquitectura
+
+- Estado: `PENDIENTE`.
+- Checkpoint: `DECISION_USUARIO`.
+- Comparar una interfaz nativa mínima con una interfaz web local, considerando
+  dependencia, distribución, latencia, accesibilidad y seguridad.
+- Definir proceso propietario, cierre, instancia única y comunicación local.
+
+#### UI-02 — Controlador local persistente
+
+- Estado: `PENDIENTE`.
+- Checkpoint: `AUTOMATICO`.
+- Mantener herramientas y sesión de navegador sin reconstruir el agente por orden.
+- Aceptar únicamente comandos estructurados a través del mismo núcleo y ejecutor.
+
+#### UI-03 — Interfaz mínima
+
+- Estado: `PENDIENTE`.
+- Checkpoint: `AUTOMATICO`.
+- Incluir entrada, ejecutar, estado, resultado, detener y control de emergencia.
+
+#### UI-04 — Latencia, uso y límites visibles
+
+- Estado: `PENDIENTE`.
+- Checkpoint: `AUTOMATICO`.
+- Mostrar tiempo extremo a extremo, etapa activa, tokens, costo y presupuesto mensual.
+
+#### UI-05 — Prueba de usuario
+
+- Estado: `PENDIENTE`.
+- Checkpoint: `PRUEBA_USUARIO`.
+- Comparar latencia fría y caliente y comprobar ejecución, reemplazo, detención y salida.
+
+#### UI-06 — Cierre de v0.4.1
 
 - Estado: `PENDIENTE`.
 - Checkpoint: `CIERRE_VERSION`.
@@ -963,10 +1058,8 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-07 — Prueba manual` de
-v0.4.
+El primer paso no completado es `UI-01 — Decisión de arquitectura` de v0.4.1.
 
-WEB-07 es un checkpoint `PRUEBA_USUARIO`. Antes de ejecutarlo se debe acordar una
-consulta de prueba y obtener autorización explícita para iniciar Chromium visible y
-usar red. Se deberá medir el tiempo por etapa y declarar que el DOM no confirma la
-salida física de audio.
+Es un checkpoint `DECISION_USUARIO`: el próximo turno debe presentar alternativas
+concretas para interfaz nativa mínima o interfaz web local y detenerse antes de agregar
+una dependencia. v0.5 no se inicia hasta cerrar v0.4.1.

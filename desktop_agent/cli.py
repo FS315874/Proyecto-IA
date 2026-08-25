@@ -1,7 +1,9 @@
 import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from typing import Protocol, runtime_checkable
 
+from desktop_agent import __version__
 from desktop_agent.budgeted_provider import BudgetedProposalProvider
 from desktop_agent.executor import ActionExecutionError, ActionExecutor
 from desktop_agent.interpretation import (
@@ -12,7 +14,9 @@ from desktop_agent.interpretation import (
     ProposalProviderError,
 )
 from desktop_agent.logging_config import configure_logging
+from desktop_agent.models import ToolResult
 from desktop_agent.openai_provider import OpenAIProposalProvider
+from desktop_agent.playwright_backend import create_youtube_playwright_adapter
 from desktop_agent.provider_config import (
     ProviderConfig,
     ProviderConfigurationError,
@@ -20,11 +24,56 @@ from desktop_agent.provider_config import (
 )
 from desktop_agent.tools.applications import open_application
 from desktop_agent.tools.browser import open_url
+from desktop_agent.tools.browser_automation import YouTubePlaybackTool
 from desktop_agent.usage_budget import MonthlyUsageLedger
 
 Output = Callable[[str], None]
 ProviderFactory = Callable[[ProviderConfig], ProposalProvider]
 BudgetFactory = Callable[[ProviderConfig], MonthlyUsageLedger]
+
+
+@runtime_checkable
+class PlaybackController(Protocol):
+    @property
+    def has_active_session(self) -> bool: ...
+
+    def __call__(self, query: str) -> ToolResult: ...
+
+    def stop(self) -> ToolResult: ...
+
+
+def _default_playback_controller(logger: logging.Logger) -> PlaybackController:
+    return YouTubePlaybackTool(
+        lambda: create_youtube_playwright_adapter(logger),
+        logger,
+    )
+
+
+def build_executor(
+    logger: logging.Logger,
+    playback_controller: PlaybackController | None = None,
+) -> tuple[ActionExecutor, PlaybackController]:
+    """Registra herramientas sin iniciar Chromium hasta recibir una orden web."""
+
+    if not isinstance(logger, logging.Logger):
+        raise TypeError("El logger del ejecutor no es válido.")
+    controller = (
+        playback_controller
+        if playback_controller is not None
+        else _default_playback_controller(logger)
+    )
+    if not isinstance(controller, PlaybackController):
+        raise TypeError("El controlador de reproducción no es válido.")
+    executor = ActionExecutor(
+        tools={
+            "open_url": open_url,
+            "open_application": open_application,
+            "play_youtube": controller,
+            "stop_youtube": controller.stop,
+        },
+        logger=logger,
+    )
+    return executor, controller
 
 
 def _default_budget_factory(config: ProviderConfig) -> MonthlyUsageLedger:
@@ -198,19 +247,19 @@ def _run_interactive(
     executor: ActionExecutor,
     logger: logging.Logger,
     interpreter: HybridInterpreter,
+    playback_controller: PlaybackController,
     output: Output = print,
 ) -> int:
-    output("Desktop Agent v0.3 — escribí 'salir' para terminar.")
+    output(f"Desktop Agent v{__version__} — escribí 'salir' para terminar.")
     while True:
         try:
             command = input("> ").strip()
         except (EOFError, KeyboardInterrupt):
-            output("\nHasta luego.")
-            return 0
+            output("")
+            return _finish_interactive(playback_controller, output)
 
         if command.casefold() in {"salir", "exit"}:
-            output("Hasta luego.")
-            return 0
+            return _finish_interactive(playback_controller, output)
         if not command:
             continue
 
@@ -223,6 +272,40 @@ def _run_interactive(
         )
 
 
+def _stop_active_playback(
+    playback_controller: PlaybackController,
+    output: Output,
+) -> bool:
+    if not playback_controller.has_active_session:
+        return True
+    result = playback_controller.stop()
+    output(result.message)
+    return result.success
+
+
+def _finish_interactive(
+    playback_controller: PlaybackController,
+    output: Output,
+) -> int:
+    stopped = _stop_active_playback(playback_controller, output)
+    output("Hasta luego.")
+    return 0 if stopped else 1
+
+
+def _hold_one_shot_playback(
+    playback_controller: PlaybackController,
+    output: Output = print,
+) -> bool:
+    if not playback_controller.has_active_session:
+        return True
+    output("Reproducción activa; presioná Enter para detenerla.")
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        output("")
+    return _stop_active_playback(playback_controller, output)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
 
@@ -232,13 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"No se pudo crear el archivo de log: {error}", file=sys.stderr)
         return 1
 
-    executor = ActionExecutor(
-        tools={
-            "open_url": open_url,
-            "open_application": open_application,
-        },
-        logger=logger,
-    )
+    executor, playback_controller = build_executor(logger)
     interpreter = build_interpreter(
         warning_output=lambda message: print(message, file=sys.stderr)
     )
@@ -251,6 +328,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger,
             interpreter=interpreter,
         )
+        if success:
+            success = _hold_one_shot_playback(playback_controller) and success
         return 0 if success else 1
 
-    return _run_interactive(executor, logger, interpreter)
+    return _run_interactive(
+        executor,
+        logger,
+        interpreter,
+        playback_controller,
+    )

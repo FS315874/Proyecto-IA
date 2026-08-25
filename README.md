@@ -4,16 +4,11 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.3 — Natural Language**. Incorpora un intérprete
-híbrido, validación y construcción local de acciones, configuración segura y un
-adaptador opt-in para OpenAI. El proveedor permanece deshabilitado por defecto.
-También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 por
-defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
-no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
-La rama de trabajo de v0.4 ya incorporó la base de Playwright, el contrato semántico,
-el flujo vertical de YouTube y la verificación temporal de reproducción. Las capas se
-probaron de forma unitaria y mediante integración local con dobles: la CLI todavía no
-expone el flujo y no se abrió ni controló un navegador real.
+La versión ejecutable actual es **v0.4 — Browser Automation**. Conserva el intérprete
+híbrido y el presupuesto local de IA de v0.3, y agrega un flujo determinista para
+buscar, reproducir y detener contenido de YouTube mediante Playwright. Chromium se
+ejecuta en un contexto temporal aislado; la consulta se trata como datos y la sesión
+permanece activa hasta recibir una detención explícita.
 
 ## Funcionalidades
 
@@ -37,6 +32,14 @@ También se aceptan variantes deterministas como `abrí VS Code` y
 `abrir Visual Studio Code`. Una instrucción desconocida solo puede usar el fallback
 externo si se habilitó expresamente; en otro caso se rechaza sin ejecutar acciones.
 
+Reproducir y detener YouTube:
+
+```text
+poné en youtube qué tan malo puedo ser
+pone lofi hip hop en youtube
+detener youtube
+```
+
 ## Arquitectura resumida
 
 ```text
@@ -49,8 +52,10 @@ Usuario
   -> ActionExecutor
   -> herramienta registrada
        ├── open_url
-       └── open_application
-  -> sistema operativo
+       ├── open_application
+       ├── play_youtube
+       └── stop_youtube
+  -> sistema operativo o Chromium aislado
 ```
 
 El texto del usuario nunca se ejecuta como código o como comando de shell. El
@@ -95,8 +100,8 @@ El camino determinista continúa usando solo la biblioteca estándar. v0.3 decla
 fallback, por lo que los comandos deterministas no inicializan el SDK.
 WEB-01 de v0.4 declara `playwright==1.62.0` y selecciona únicamente Chromium con
 contextos temporales aislados. WEB-02 a WEB-04 agregan el contrato, la política, el
-adaptador y un backend Playwright de YouTube. La fábrica que inicia Chromium existe,
-pero no está registrada en la CLI ni fue invocada durante las pruebas.
+adaptador y un backend Playwright de YouTube. WEB-08 registra el controlador en la CLI
+sin iniciar Chromium hasta recibir una orden de reproducción.
 
 ## Requisitos
 
@@ -149,7 +154,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.3 — escribí 'salir' para terminar.
+Desktop Agent v0.4.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -161,7 +166,12 @@ También se puede ejecutar una única instrucción:
 ```powershell
 python -m desktop_agent "abrir youtube"
 python -m desktop_agent "abrir vscode"
+python -m desktop_agent "poné en youtube qué tan malo puedo ser"
 ```
+
+En modo interactivo, la reproducción continúa mientras se ingresan nuevas órdenes;
+`detener youtube` o `salir` cierran la sesión. En modo de una sola instrucción, la CLI
+espera Enter antes de detenerla para no dejar un proceso sin dueño.
 
 El fallback opt-in de v0.3 requiere que la dependencia declarada esté
 instalada, que `OPENAI_API_KEY` ya exista de forma segura en el entorno y un opt-in
@@ -213,6 +223,8 @@ Para terminar el modo interactivo:
 | `abrir chrome` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir vscode` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir calculadora` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
+| `poné en youtube <consulta>` | `BROWSER_NAVIGATION` | `play_youtube` | `SAFE` |
+| `detener youtube` | `BROWSER_NAVIGATION` | `stop_youtube` | `SAFE` |
 
 ## Pruebas
 
@@ -222,10 +234,34 @@ Ejecutá la suite completa con:
 python -m unittest discover -s tests -v
 ```
 
-Las pruebas usan navegadores, buscadores de ejecutables e iniciadores de procesos
-falsos. Por eso pueden verificar las herramientas sin abrir ventanas reales.
-El cierre de v0.3 contiene 80 pruebas locales aprobadas. WEB-02 agregó 17 pruebas de
-contrato; la suite actual contiene 97.
+La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
+procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
+La suite actual contiene 144 pruebas locales.
+
+WEB-07 dispone además de un runner manual separado. Estos comandos abren Chromium
+visible y usan red; no forman parte de la suite normal:
+
+```powershell
+python -m scripts.web07_manual_check valid
+python -m scripts.web07_manual_check no-results
+python -m scripts.web07_manual_check custom
+python -m scripts.web07_manual_check cancel
+```
+
+El escenario `custom` solicita una consulta interactiva, la valida como texto y no la
+registra. Los casos `valid`, `custom` y `cancel` esperan Enter para detener y cerrar la
+sesión sin enviar `Ctrl+C` al runtime. El checkpoint del 2026-08-25 comprobó el caso
+válido en 9,01 s. YouTube devolvió un resultado para la consulta aleatoria del caso
+`no-results`, y el primer intento de cancelación con `Ctrl+C` terminó con
+`backend_failure`. El contenido no disponible no puede elegirse mediante la interfaz
+pública externa actual. El backend la reproduce localmente mediante el error seguro
+`content_unavailable`. WEB-07 está completado.
+
+La corrección posterior conserva una reproducción exitosa mediante
+`YouTubePlaybackTool` hasta llamar a `stop()`. Tres pruebas nuevas comprueban sesión
+activa, detención idempotente, preservación ante una consulta inválida y fallo de
+cierre. Una repetición real quedó activa durante 8 min 43 s y cerró limpiamente en
+0,29 s tras la señal explícita del usuario.
 
 Cobertura funcional actual:
 
@@ -251,6 +287,8 @@ Cobertura funcional actual:
   fuera del catálogo, proveedor deshabilitado, fallo y límite mensual;
 - contrato semántico de navegador, destinos canónicos, consultas acotadas,
   observaciones estructuradas e inyección de efectos sin lanzar Playwright.
+- política, estados, backend DOM, verificación temporal e integración local completa
+  del flujo web con dobles.
 
 ## Logging
 
@@ -314,6 +352,8 @@ docs/
 ├── PROJECT_DOCUMENTATION.md
 ├── V0.3_ARCHITECTURE_PROPOSAL.md
 └── V0.4_ARCHITECTURE_PROPOSAL.md
+scripts/
+└── web07_manual_check.py
 tests/
 ```
 
@@ -325,8 +365,10 @@ tests/
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
-  WEB-01 a WEB-06 completados; backend, flujo, verificación y composición integral
-  validados con dobles, sin control real ni integración con la CLI.
+  completada; la CLI reproduce y detiene YouTube mediante Chromium aislado, con
+  verificación DOM, sesión persistente y fallos estructurados.
+- **v0.4.1 — Local Control Console:** próximo incremento acordado; interfaz mínima,
+  proceso local persistente, estado, métricas y detención de emergencia.
 
 ## Autoría y componentes externos
 

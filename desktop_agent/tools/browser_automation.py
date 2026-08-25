@@ -90,7 +90,7 @@ class BrowserNavigationTool:
 
 
 class YouTubePlaybackTool:
-    """Ejecuta cinco pasos fijos sin interpretar la consulta como instrucciones."""
+    """Mantiene una reproducción verificada hasta recibir una detención explícita."""
 
     def __init__(
         self,
@@ -107,6 +107,11 @@ class YouTubePlaybackTool:
         self._adapter_factory = adapter_factory
         self._logger = logger
         self._clock = clock
+        self._active_adapter: BrowserAdapter | None = None
+
+    @property
+    def has_active_session(self) -> bool:
+        return self._active_adapter is not None
 
     def __call__(self, query: str) -> ToolResult:
         started_at = self._clock()
@@ -115,11 +120,23 @@ class YouTubePlaybackTool:
             Intent.BROWSER_NAVIGATION.value,
         )
 
-        adapter: BrowserAdapter | None = None
-        flow_success = False
-        close_success = False
         try:
             normalized_query = normalize_search_query(query)
+        except ValueError:
+            return ToolResult(
+                False,
+                "No se pudo verificar la reproducción segura en YouTube.",
+            )
+
+        if self._active_adapter is not None and not self._close_active_session():
+            return ToolResult(
+                False,
+                "No se pudo cerrar la reproducción anterior de YouTube.",
+            )
+
+        adapter: BrowserAdapter | None = None
+        flow_success = False
+        try:
             candidate = self._adapter_factory()
             if not isinstance(candidate, BrowserAdapter):
                 raise TypeError("invalid adapter")
@@ -137,32 +154,63 @@ class YouTubePlaybackTool:
                     break
             else:
                 flow_success = True
+                self._active_adapter = adapter
+                adapter = None
         except Exception:
             flow_success = False
         finally:
             if adapter is not None:
                 try:
-                    close_result = adapter.close()
-                    close_success = (
-                        close_result.status is BrowserStepStatus.SUCCESS
-                    )
+                    adapter.close()
                 except Exception:
-                    close_success = False
+                    pass
 
-        success = flow_success and close_success
         duration_ms = max(0.0, (self._clock() - started_at) * 1000)
         self._logger.info(
             "Browser tool: destination=youtube status=%s duration_ms=%.3f",
-            "success" if success else "failure",
+            "active" if flow_success else "failure",
             duration_ms,
         )
 
-        if not success:
+        if not flow_success:
             return ToolResult(
                 False,
                 "No se pudo verificar la reproducción segura en YouTube.",
             )
         return ToolResult(
             True,
-            "La reproducción segura se verificó en YouTube.",
+            "La reproducción segura se verificó y permanece activa en YouTube.",
         )
+
+    def stop(self) -> ToolResult:
+        """Detiene la sesión activa y libera sus recursos de forma idempotente."""
+
+        if self._active_adapter is None:
+            return ToolResult(True, "No había una reproducción activa en YouTube.")
+        if self._close_active_session():
+            return ToolResult(True, "La reproducción de YouTube se detuvo.")
+        return ToolResult(
+            False,
+            "No se pudo cerrar completamente la reproducción de YouTube.",
+        )
+
+    def _close_active_session(self) -> bool:
+        started_at = self._clock()
+        adapter = self._active_adapter
+        self._active_adapter = None
+        success = False
+        try:
+            if adapter is not None:
+                result = adapter.close()
+                success = result.status is BrowserStepStatus.SUCCESS
+        except Exception:
+            success = False
+
+        duration_ms = max(0.0, (self._clock() - started_at) * 1000)
+        self._logger.info(
+            "Browser tool: destination=youtube operation=stop "
+            "status=%s duration_ms=%.3f",
+            "success" if success else "failure",
+            duration_ms,
+        )
+        return success

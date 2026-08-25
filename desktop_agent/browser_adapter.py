@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 from desktop_agent.browser_contract import (
     BrowserAdapterDependencies,
     BrowserConsentRequiredError,
+    BrowserContentUnavailableError,
     BrowserDomUnavailableError,
     BrowserError,
     BrowserErrorCode,
@@ -296,6 +297,17 @@ class SafeBrowserAdapter:
                 error=BrowserError(
                     BrowserErrorCode.NO_RESULTS,
                     "El sitio no produjo resultados permitidos.",
+                ),
+            )
+        except BrowserContentUnavailableError:
+            self._state = BrowserSessionState.FAILED
+            result = BrowserStepResult(
+                operation,
+                BrowserStepStatus.FAILURE,
+                self._duration_ms(started_at),
+                error=BrowserError(
+                    BrowserErrorCode.CONTENT_UNAVAILABLE,
+                    "El contenido seleccionado no está disponible.",
                 ),
             )
         except BrowserDomUnavailableError:

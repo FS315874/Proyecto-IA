@@ -3,10 +3,18 @@ import logging
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from desktop_agent.cli import build_interpreter, process_command
+from desktop_agent.cli import (
+    _hold_one_shot_playback,
+    _run_interactive,
+    build_executor,
+    build_interpreter,
+    process_command,
+)
 from desktop_agent.executor import ActionExecutor
 from desktop_agent.interpretation import (
+    HybridInterpreter,
     ProposalProviderError,
     ProposalProviderResult,
     ProposalUsage,
@@ -19,6 +27,27 @@ from desktop_agent.provider_config import (
     ProviderConfig,
 )
 from desktop_agent.usage_budget import MonthlyUsageLedger
+
+
+class FakePlaybackController:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+        self.stop_calls = 0
+        self.active = False
+
+    @property
+    def has_active_session(self) -> bool:
+        return self.active
+
+    def __call__(self, query: str) -> ToolResult:
+        self.queries.append(query)
+        self.active = True
+        return ToolResult(True, "Reproducción activa.")
+
+    def stop(self) -> ToolResult:
+        self.stop_calls += 1
+        self.active = False
+        return ToolResult(True, "Reproducción detenida.")
 
 
 class FakeProposalProvider:
@@ -361,6 +390,106 @@ class ProcessCommandTests(unittest.TestCase):
         self.assertEqual(
             warnings,
             ["Configuración de IA inválida; se usará el modo determinista."],
+        )
+
+
+class V04CliIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.log_output = io.StringIO()
+        self.logger = logging.Logger(self.id(), level=logging.INFO)
+        self.logger.addHandler(logging.StreamHandler(self.log_output))
+        self.controller = FakePlaybackController()
+        self.executor, returned_controller = build_executor(
+            self.logger,
+            self.controller,
+        )
+        self.assertIs(returned_controller, self.controller)
+
+    def test_registered_tools_play_and_stop_without_exposing_query_in_logs(
+        self,
+    ) -> None:
+        output: list[str] = []
+
+        played = process_command(
+            "poné en youtube Qué tan malo puedo ser",
+            self.executor,
+            self.logger,
+            output.append,
+        )
+        stopped = process_command(
+            "detener youtube",
+            self.executor,
+            self.logger,
+            output.append,
+        )
+
+        self.assertTrue(played)
+        self.assertTrue(stopped)
+        self.assertEqual(self.controller.queries, ["Qué tan malo puedo ser"])
+        self.assertEqual(self.controller.stop_calls, 1)
+        self.assertFalse(self.controller.has_active_session)
+        self.assertNotIn("Qué tan malo puedo ser", self.log_output.getvalue())
+
+    def test_deterministic_playback_bypasses_configured_provider(self) -> None:
+        provider = FakeProposalProvider(
+            {"schema_version": 1, "intent": "UNSUPPORTED", "target": None}
+        )
+        interpreter = HybridInterpreter(provider)
+
+        success = process_command(
+            "pone lofi hip hop en youtube",
+            self.executor,
+            self.logger,
+            output=lambda _: None,
+            interpreter=interpreter,
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(provider.commands, [])
+        self.assertEqual(self.controller.queries, ["lofi hip hop"])
+
+    def test_one_shot_waits_for_enter_and_stops_active_playback(self) -> None:
+        self.controller("lofi")
+        output: list[str] = []
+
+        with patch("builtins.input", return_value=""):
+            stopped = _hold_one_shot_playback(
+                self.controller,
+                output.append,
+            )
+
+        self.assertTrue(stopped)
+        self.assertEqual(self.controller.stop_calls, 1)
+        self.assertEqual(
+            output,
+            [
+                "Reproducción activa; presioná Enter para detenerla.",
+                "Reproducción detenida.",
+            ],
+        )
+
+    def test_interactive_exit_stops_session_and_reports_current_version(self) -> None:
+        self.controller("lofi")
+        output: list[str] = []
+
+        with patch("builtins.input", return_value="salir"):
+            exit_code = _run_interactive(
+                self.executor,
+                self.logger,
+                HybridInterpreter(),
+                self.controller,
+                output.append,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(self.controller.stop_calls, 1)
+        self.assertEqual(
+            output,
+            [
+                "Desktop Agent v0.4.0 — escribí 'salir' para terminar.",
+                "Reproducción detenida.",
+                "Hasta luego.",
+            ],
         )
 
 

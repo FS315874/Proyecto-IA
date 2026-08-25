@@ -307,17 +307,19 @@ sin telemetría conserva ese centavo como estimación conservadora.
 
 ## 12. Testing
 
-La suite usa `unittest` y no necesita red. Los tests del adaptador inyectan un cliente
-falso; la compatibilidad con el SDK se comprobó por separado en un directorio temporal
-con su método de red reemplazado por un mock.
+La suite usa `unittest` y no necesita red. Los tests de adaptadores inyectan clientes,
+navegador, contexto, página y runtime falsos. La compatibilidad con el SDK se comprobó
+por separado con su método de red reemplazado por un mock.
 
 Las dependencias que producen efectos se pueden inyectar:
 
 - `open_url` recibe un navegador falso;
 - `open_application` recibe un verificador de rutas, buscador y starter falsos;
 - la CLI recibe una función de salida reemplazable;
-- el ejecutor recibe un registro de herramientas de prueba.
+- el ejecutor recibe un registro de herramientas de prueba;
 - el registro de consumo recibe archivo, mes e identificadores de reserva inyectables.
+- la automatización web recibe navegador, contexto, página, runtime, reloj y espera
+  inyectables.
 
 Esto permite verificar cada herramienta de manera independiente del parser y de un
 futuro LLM.
@@ -328,7 +330,9 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 97 pruebas unitarias, todas sin red ni efectos reales.
+Estado actual: 144 pruebas automatizadas, todas sin red ni efectos reales. El runner
+manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
+y usa red.
 
 ## 13. Evolución por versiones
 
@@ -405,8 +409,8 @@ validación. Las herramientas del sistema también fueron reemplazadas por doble
   archivo no coordina varias instancias ejecutándose en paralelo; la v0.3 presupone
   una única instancia activa.
 - Playwright y Chromium están instalados como base de v0.4 y existe un backend DOM
-  acotado probado con dobles, pero todavía no hay integración con la CLI ni control de
-  navegador real. Tampoco hay screenshots, visión, mouse, teclado ni memoria.
+  acotado probado con dobles. La CLI expone reproducción y detención deterministas en
+  un contexto temporal. Todavía no hay screenshots, visión, mouse, teclado ni memoria.
 - La política de confirmación todavía no tiene interfaz; por eso todo riesgo no
   seguro se bloquea.
 
@@ -449,7 +453,8 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-06 completado |
+| v0.4 | Automatización de navegador con Playwright | Completada |
+| v0.4.1 | Consola local mínima y persistente | Próxima; decisión técnica pendiente |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -578,3 +583,66 @@ La fábrica permite inyectar reloj y espera y los valida antes de iniciar el run
 Las dos pruebas nuevas elevan la suite a 133 casos. El E2E real fue omitido de forma
 intencional: es opcional, depende de red y del DOM externo, y requerirá autorización
 expresa en el checkpoint WEB-07.
+
+WEB-07 agregó `scripts/web07_manual_check.py`, un runner separado de la CLI con casos
+fijos y una consulta pública interactiva normalizada, cierre en `finally`, resultados
+JSON y tiempos de arranque, navegación, cierre y total. No registra la consulta ni
+permite recibir URLs, selectores, scripts o perfiles externos.
+
+El 2026-08-25 se ejecutaron tres observaciones con Chromium visible y red autorizada:
+
+- `valid` completó apertura, búsqueda, selección, inicio y verificación; demoró
+  1,47 s en iniciar el navegador, 7,15 s en navegar y verificar, y 9,01 s en total;
+- una segunda consulta pública interactiva elegida por el usuario también completó el
+  flujo: arranque 3,83 s, navegación y verificación 7,10 s, total 11,38 s;
+- `no-results` no reprodujo la condición: YouTube devolvió y permitió seleccionar un
+  resultado incluso para la consulta aleatoria; cerró correctamente en 5,46 s;
+- `cancel` recibió `Ctrl+C` después de abrir YouTube, pero el cierre informó
+  `backend_failure`; no existe todavía cancelación estructurada en el contrato.
+
+El caso de contenido no disponible tampoco es alcanzable de manera reproducible: la
+interfaz pública recibe una consulta y selecciona el primer resultado permitido, pero
+no admite elegir un identificador de video. Alterar la página o pasar una URL para
+forzar el fallo eludiría el contrato que se intenta validar. La interpretación no fue
+medida en ese checkpoint porque el flujo todavía no estaba registrado en la CLI. El
+DOM confirmó reproducción, ausencia de mute y progreso, no la salida física de audio.
+La primera implementación cerraba inmediatamente después de verificar. La corrección
+de WEB-07 transfirió la sesión exitosa a `YouTubePlaybackTool`: permanece activa hasta
+`stop()`, mientras los fallos conservan el cierre inmediato. La detención es
+idempotente, una consulta inválida no interrumpe la sesión existente y un fallo de
+cierre se informa sin conservar un handle que parezca activo.
+
+El runner sustituyó `Ctrl+C` por una espera de Enter. Así mantiene el navegador y la
+reproducción activos sin enviar una interrupción al proceso de Playwright, y después
+ejecuta el cierre normal en `finally`. Una repetición real con la consulta elegida por
+el usuario permaneció activa 8 min 43 s y cerró contexto, navegador y runtime en
+0,29 s después de la señal explícita.
+
+Los estados negativos no se fuerzan contra el servicio externo. Cero resultados se
+comprueba mediante el marcador DOM esperado y `NO_RESULTS`; contenido no disponible
+se detecta mediante marcadores fijos del reproductor y produce
+`CONTENT_UNAVAILABLE`. Ambos se validan de forma determinista sin aceptar URLs,
+selectores ni scripts del usuario. Cuatro pruebas nuevas llevan la suite a 137 casos.
+
+WEB-07 queda completado.
+
+WEB-08 integró la capacidad con la CLI mediante dos herramientas registradas:
+`play_youtube` conserva la sesión verificada y `stop_youtube` la detiene. El parser
+reconoce formas deterministas acotadas, preserva la consulta normalizada como datos y
+rechaza consultas vacías o mayores a 200 caracteres antes de abrir Chromium. Estas
+órdenes no invocan el proveedor de IA ni se registran textualmente.
+
+El modo interactivo conserva el mismo controlador entre órdenes y lo detiene al
+recibir `detener youtube`, `salir`, EOF o una interrupción manejable. El modo de una
+sola instrucción espera Enter antes del cierre. La fábrica permanece diferida: iniciar
+la CLI o usar otras herramientas no lanza Playwright.
+
+`pyproject.toml`, el paquete y el banner declaran `0.4.0`. Siete pruebas nuevas cubren
+parsing, registro, bypass del proveedor, ciclo de vida de una orden y limpieza al salir;
+la suite completa suma 144 casos. WEB-08 y v0.4 quedan completados.
+
+El próximo incremento acordado es v0.4.1 — Local Control Console. Su objetivo será
+eliminar a Codex como intermediario cotidiano mediante un proceso local persistente y
+una interfaz mínima con entrada, estado, métricas, detención normal y control de
+emergencia. La tecnología de interfaz requiere una decisión separada antes de agregar
+dependencias.

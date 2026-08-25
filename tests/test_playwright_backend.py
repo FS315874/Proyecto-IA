@@ -6,6 +6,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from desktop_agent.browser_contract import (
     BrowserConsentRequiredError,
+    BrowserContentUnavailableError,
     BrowserDomUnavailableError,
     BrowserNoResultsError,
     BrowserStepStatus,
@@ -19,6 +20,7 @@ from desktop_agent.playwright_backend import (
     PLAY_BUTTON_SELECTOR,
     RESULTS_READY_SELECTOR,
     SEARCH_INPUT_SELECTORS,
+    UNAVAILABLE_SELECTOR,
     VIDEO_RESULT_SELECTOR,
     VIDEO_SELECTOR,
     YOUTUBE_CANONICAL_URL,
@@ -315,6 +317,22 @@ class YouTubePlaywrightPageTests(unittest.TestCase):
         with self.assertRaises(BrowserDomUnavailableError):
             self.backend.search("lofi", 5.0)
 
+    def test_reports_selected_content_as_unavailable(self) -> None:
+        unavailable = self.page.locators.setdefault(
+            UNAVAILABLE_SELECTOR,
+            FakeLocator(self.page, "unavailable"),
+        )
+        unavailable.count_value = 1
+        unavailable.visible = True
+
+        with self.assertRaises(BrowserContentUnavailableError):
+            self.backend.select_first_result(5.0)
+
+        self.assertEqual(
+            self.page.url_value,
+            "https://www.youtube.com/watch?v=abcdefghijk",
+        )
+
     def test_translates_playwright_timeout_without_backend_detail(self) -> None:
         search = self.page.locators[SEARCH_INPUT_SELECTORS[0]]
         search.press_error = PlaywrightTimeoutError("private selector detail")
@@ -440,7 +458,7 @@ class V04BrowserIntegrationTests(unittest.TestCase):
         self.runtime = FakeRuntime(self.browser)
         self.waits: list[float] = []
 
-    def executor(self) -> ActionExecutor:
+    def tool(self) -> YouTubePlaybackTool:
         def adapter_factory():
             return create_youtube_playwright_adapter(
                 self.logger,
@@ -450,15 +468,10 @@ class V04BrowserIntegrationTests(unittest.TestCase):
                 wait=self.waits.append,
             )
 
-        return ActionExecutor(
-            {
-                "play_youtube": YouTubePlaybackTool(
-                    adapter_factory,
-                    self.logger,
-                    clock=lambda: 1.0,
-                )
-            },
+        return YouTubePlaybackTool(
+            adapter_factory,
             self.logger,
+            clock=lambda: 1.0,
         )
 
     def action(self, query: str = "lofi hip hop") -> Action:
@@ -505,10 +518,21 @@ class V04BrowserIntegrationTests(unittest.TestCase):
             },
         ]
 
-        result = self.executor().execute(self.action())
+        tool = self.tool()
+        executor = ActionExecutor({"play_youtube": tool}, self.logger)
+
+        result = executor.execute(self.action())
 
         self.assertTrue(result.success)
         self.assertEqual(self.waits, [1.0])
+        self.assertEqual(self.context.close_calls, 0)
+        self.assertEqual(self.browser.close_calls, 0)
+        self.assertEqual(self.runtime.stop_calls, 0)
+        self.assertTrue(tool.has_active_session)
+
+        stop_result = tool.stop()
+
+        self.assertTrue(stop_result.success)
         self.assertEqual(self.context.close_calls, 1)
         self.assertEqual(self.browser.close_calls, 1)
         self.assertEqual(self.runtime.stop_calls, 1)
@@ -522,13 +546,17 @@ class V04BrowserIntegrationTests(unittest.TestCase):
         consent.count_value = 1
         consent.visible = True
 
+        tool = self.tool()
+        executor = ActionExecutor({"play_youtube": tool}, self.logger)
+
         with self.assertRaises(ActionExecutionError):
-            self.executor().execute(self.action())
+            executor.execute(self.action())
 
         self.assertEqual(self.waits, [])
         self.assertEqual(self.context.close_calls, 1)
         self.assertEqual(self.browser.close_calls, 1)
         self.assertEqual(self.runtime.stop_calls, 1)
+        self.assertFalse(tool.has_active_session)
         log = self.log_output.getvalue()
         self.assertIn("error=consent_required", log)
         self.assertNotIn("lofi hip hop", log)

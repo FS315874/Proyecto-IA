@@ -5,6 +5,40 @@ from desktop_agent.parser import parse_command
 
 
 class ParseCommandTests(unittest.TestCase):
+    def test_parses_youtube_playback_commands_preserving_query_as_data(self) -> None:
+        commands = {
+            "poné en youtube Qué tan malo puedo ser": "Qué tan malo puedo ser",
+            "pone lofi   hip hop en YouTube": "lofi hip hop",
+            "reproducir Música de estudio en youtube": "Música de estudio",
+        }
+
+        for command, expected_query in commands.items():
+            with self.subTest(command=command):
+                action = parse_command(command)
+
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.BROWSER_NAVIGATION)
+                self.assertEqual(action.tool_name, "play_youtube")
+                self.assertEqual(action.arguments, {"query": expected_query})
+                self.assertEqual(action.risk_level, RiskLevel.SAFE)
+                self.assertFalse(action.requires_confirmation)
+
+    def test_parses_youtube_stop_commands(self) -> None:
+        for command in ("detené youtube", "detener YouTube", "parar youtube"):
+            with self.subTest(command=command):
+                action = parse_command(command)
+
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.BROWSER_NAVIGATION)
+                self.assertEqual(action.tool_name, "stop_youtube")
+                self.assertEqual(action.arguments, {})
+
+    def test_rejects_invalid_youtube_playback_queries(self) -> None:
+        self.assertIsNone(parse_command("poné en youtube   "))
+        self.assertIsNone(parse_command(f"poné {'x' * 201} en youtube"))
+
     def test_parses_each_supported_site(self) -> None:
         expected_urls = {
             "abrir youtube": "https://www.youtube.com/",

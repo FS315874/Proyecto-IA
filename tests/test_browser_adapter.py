@@ -10,6 +10,7 @@ from desktop_agent.browser_adapter import (
 from desktop_agent.browser_contract import (
     BrowserAdapterDependencies,
     BrowserConsentRequiredError,
+    BrowserContentUnavailableError,
     BrowserDomUnavailableError,
     BrowserErrorCode,
     BrowserNoResultsError,
@@ -371,6 +372,10 @@ class SafeBrowserAdapterTests(SafeBrowserTestSupport, unittest.TestCase):
                 BrowserErrorCode.NO_RESULTS,
             ),
             (
+                BrowserContentUnavailableError("private content detail"),
+                BrowserErrorCode.CONTENT_UNAVAILABLE,
+            ),
+            (
                 BrowserDomUnavailableError("private dom detail"),
                 BrowserErrorCode.DOM_UNAVAILABLE,
             ),
@@ -499,8 +504,9 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
         )
 
     def test_executes_bounded_vertical_flow_through_action_executor(self) -> None:
+        tool = self.tool()
         executor = ActionExecutor(
-            {"play_youtube": self.tool()},
+            {"play_youtube": tool},
             self.logger,
         )
         action = Action(
@@ -526,8 +532,47 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
             ],
         )
         self.assertIn(("search", "lofi hip hop", 5.0), self.page.calls)
+        self.assertEqual(self.close_order, [])
+        self.assertTrue(tool.has_active_session)
+        self.assertIn("permanece activa", result.message)
+
+        stop_result = tool.stop()
+
+        self.assertTrue(stop_result.success)
         self.assertEqual(self.close_order, ["context", "browser"])
+        self.assertFalse(tool.has_active_session)
         self.assertNotIn("lofi hip hop", self.log_output.getvalue())
+
+    def test_stop_is_idempotent(self) -> None:
+        tool = self.tool()
+
+        self.assertTrue(tool("lofi").success)
+        self.assertTrue(tool.stop().success)
+        self.assertTrue(tool.stop().success)
+
+        self.assertEqual(self.close_order, ["context", "browser"])
+
+    def test_invalid_query_does_not_interrupt_active_playback(self) -> None:
+        tool = self.tool()
+
+        self.assertTrue(tool("lofi").success)
+        result = tool("   ")
+
+        self.assertFalse(result.success)
+        self.assertTrue(tool.has_active_session)
+        self.assertEqual(self.close_order, [])
+        self.assertTrue(tool.stop().success)
+
+    def test_stop_reports_close_failure_without_leaking_session(self) -> None:
+        tool = self.tool()
+        self.context.fail_on_close = True
+
+        self.assertTrue(tool("lofi").success)
+        result = tool.stop()
+
+        self.assertFalse(result.success)
+        self.assertFalse(tool.has_active_session)
+        self.assertEqual(self.close_order, ["context", "browser"])
 
     def test_stops_at_no_results_and_still_closes(self) -> None:
         self.page.result_count = 0
