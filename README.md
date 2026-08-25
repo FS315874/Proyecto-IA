@@ -4,10 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.5 — Tareas de varios pasos**. Conserva la
-consola local persistente de v0.4.1 y agrega planes secuenciales, acotados y
-completamente validados antes del primer efecto. No hay bucles libres, reintentos
-autónomos ni herramientas inventadas por un modelo.
+La versión ejecutable actual es **v0.6 — Observación visual local**. Conserva los
+planes acotados de v0.5 y agrega captura temporal de una ventana exacta, con límites,
+redacción y referencias que caducan al cambiar el estado. No captura el escritorio
+completo por defecto ni envía imágenes a servicios externos.
 
 ## Funcionalidades
 
@@ -102,6 +102,7 @@ en [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
 - `unittest` para las pruebas automatizadas.
 - Playwright para la automatización DOM acotada de v0.4.
 - Tkinter/ttk para la consola nativa local de v0.4.1.
+- APIs nativas de Windows (`user32` y `gdi32`) para la captura acotada de v0.6.
 
 El camino determinista continúa usando solo la biblioteca estándar. v0.3 declara
 `openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
@@ -114,6 +115,8 @@ v0.4.1 no agrega una dependencia de paquete: Tkinter pertenece a una instalació
 completa de CPython. El controlador y la UI comparten el mismo núcleo que la CLI.
 v0.5 tampoco agrega dependencias: el planificador reutiliza el catálogo, el ejecutor,
 el presupuesto y el adaptador de Responses existente.
+v0.6 usa `ctypes` y APIs incluidas en Windows; no agrega paquetes ni guarda capturas
+durante la operación normal.
 
 ## Requisitos
 
@@ -181,7 +184,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.5.0 — escribí 'salir' para terminar.
+Desktop Agent v0.6.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -272,7 +275,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 172 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 183 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -378,11 +381,13 @@ desktop_agent/
 ├── interpretation.py
 ├── logging_config.py
 ├── models.py
+├── observation.py
 ├── openai_plan_provider.py
 ├── parser.py
 ├── plans.py
 ├── playwright_backend.py
 ├── usage_budget.py
+├── windows_capture.py
 └── tools/
     ├── applications.py
     ├── browser.py
@@ -393,7 +398,8 @@ docs/
 ├── V0.3_ARCHITECTURE_PROPOSAL.md
 ├── V0.4_ARCHITECTURE_PROPOSAL.md
 ├── V0.4.1_ARCHITECTURE.md
-└── V0.5_ARCHITECTURE.md
+├── V0.5_ARCHITECTURE.md
+└── V0.6_ARCHITECTURE.md
 scripts/
 └── web07_manual_check.py
 tests/
@@ -413,6 +419,8 @@ tests/
   persistente, estado, métricas y detención de emergencia.
 - **v0.5 — Tareas de varios pasos:** completada; planes de dos a cinco acciones,
   validación total previa, límites de tiempo, cancelación y resultados por paso.
+- **v0.6 — Observación visual local:** completada; captura exacta de ventana,
+  regiones acotadas, redacción, retención breve e invalidación por cambio de estado.
 
 ## Autoría y componentes externos
 
@@ -427,6 +435,7 @@ Construido en el proyecto:
 - backend DOM acotado y flujo vertical de YouTube;
 - adaptador seguro de propuestas para OpenAI;
 - contrato, validación y ejecución acotada de planes de varios pasos;
+- contrato y backend nativo para observaciones visuales locales minimizadas;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

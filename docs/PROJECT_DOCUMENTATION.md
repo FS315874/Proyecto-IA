@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 172 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 183 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -457,7 +457,7 @@ para saltar versiones o decisiones del usuario.
 | v0.4 | Automatización de navegador con Playwright | Completada |
 | v0.4.1 | Consola local mínima y persistente | Completada |
 | v0.5 | Tareas de varios pasos | Completada |
-| v0.6 | Screenshots | Pendiente |
+| v0.6 | Screenshots | Completada |
 | v0.7 | Visión | Pendiente |
 | v0.8 | Mouse y teclado con límites | Pendiente |
 | v0.9 | Bucle observe-plan-act-evaluate | Pendiente |
@@ -699,3 +699,31 @@ La CLI expone esta capacidad mediante `--plan`. La demostración local abrió do
 permitidas mediante herramientas falsas y el entrypoint real ejecutó dos detenciones
 idempotentes sin iniciar Chromium. La suite completa suma 172 pruebas locales. La
 decisión y el contrato detallados están en [V0.5_ARCHITECTURE.md](V0.5_ARCHITECTURE.md).
+
+## 22. Estado de implementación de v0.6
+
+v0.6 introduce observaciones visuales locales como datos temporales, no como acciones.
+`ObservationService` requiere un `WindowTarget` concreto y una región dentro de su
+área cliente. Aplica límites de 1280 × 720, 921.600 píxeles, una captura cada 250 ms,
+ocho capturas por sesión y treinta segundos de retención. Los valores son configurables
+en tests, pero siempre se validan localmente.
+
+Cada observación contiene un identificador opaco, ventana, revisión, región,
+dimensiones, formato y vencimiento; los píxeles se conservan aparte. `read_frame`
+exige la misma ventana y revisión. `mark_state_changed` elimina las capturas asociadas
+y devuelve una referencia de ventana con revisión nueva, de modo que un identificador
+o coordenada derivado del estado anterior no puede reutilizarse.
+
+Las regiones sensibles se validan respecto de la captura y se reemplazan por píxeles
+negros antes de que el frame quede disponible. `close` descarta todos los frames. Los
+logs no incluyen títulos, píxeles ni texto visible.
+
+`WindowsWindowCaptureBackend` enumera títulos exactos, rechaza coincidencias ambiguas,
+ventanas ocultas o minimizadas y cambios de proceso o tamaño. Solo captura objetivos
+emitidos por la misma instancia. Usa `user32` y `gdi32` mediante `ctypes`, por lo que
+no fue necesario agregar una dependencia.
+
+Once pruebas unitarias usan frames ficticios. La demo autorizada de OBS-08 abrió una
+ventana Tk propia con datos explícitamente ficticios, capturó y redactó una región,
+codificó el frame en memoria, invalidó la referencia y cerró sin guardar ni enviar la
+imagen. La suite pasa a 183 pruebas.

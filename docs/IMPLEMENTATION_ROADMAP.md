@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.5 completada y v0.6 habilitada.
+> Estado comprobado del producto: v0.6 completada y v0.7 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -200,8 +200,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.4 | Automatización de navegador | `COMPLETADO` | Ninguno. |
 | v0.4.1 | Consola local mínima | `COMPLETADO` | Ninguno. |
 | v0.5 | Tareas de varios pasos | `COMPLETADO` | Ninguno. |
-| v0.6 | Observación mediante screenshots | `PENDIENTE` | Ejecutar OBS-01. |
-| v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
+| v0.6 | Observación mediante screenshots | `COMPLETADO` | Ninguno. |
+| v0.7 | Interpretación visual | `PENDIENTE` | Ejecutar VIS-01. |
 | v0.8 | Mouse y teclado con límites | `PENDIENTE` | Solo después de cerrar v0.7. |
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Solo después de cerrar v0.8. |
 | v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Solo después de cerrar v0.9. |
@@ -731,14 +731,15 @@ defecto el escritorio completo a un servicio externo.
 
 ### Secuencia
 
-1. definir región, ventana objetivo y metadatos de captura;
-2. capturar localmente mediante una interfaz reemplazable;
-3. limitar resolución, frecuencia, cantidad y retención;
-4. asociar cada captura a un identificador y ventana concretos;
-5. impedir reutilizar coordenadas o identificadores después de cambiar el estado;
-6. redactar o excluir regiones sensibles cuando corresponda;
-7. probar con imágenes ficticias y sin capturar el escritorio real;
-8. realizar una prueba manual autorizada y cerrar la versión.
+1. `OBS-01` — `COMPLETADO`: contratos de ventana, región, frame y metadatos.
+2. `OBS-02` — `COMPLETADO`: interfaz reemplazable y backend nativo de ventana.
+3. `OBS-03` — `COMPLETADO`: límites de resolución, frecuencia, cantidad y retención.
+4. `OBS-04` — `COMPLETADO`: identificadores opacos ligados a ventana y revisión.
+5. `OBS-05` — `COMPLETADO`: invalidación de observaciones ante cambio de estado.
+6. `OBS-06` — `COMPLETADO`: regiones sensibles reemplazadas localmente por negro.
+7. `OBS-07` — `COMPLETADO`: once pruebas con frames ficticios y sin escritorio real.
+8. `OBS-08` — `COMPLETADO`: captura real de una ventana propia con datos ficticios,
+   redacción e invalidación verificadas sin persistir ni enviar la imagen.
 
 ## 11. v0.7 — Interpretación visual
 
@@ -1080,7 +1081,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `OBS-01 — Contrato de observación` de v0.6. El usuario
+El primer paso no completado es `VIS-01 — Decisión de visión` de v0.7. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
