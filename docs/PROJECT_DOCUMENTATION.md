@@ -320,6 +320,7 @@ Las dependencias que producen efectos se pueden inyectar:
 - el registro de consumo recibe archivo, mes e identificadores de reserva inyectables.
 - la automatización web recibe navegador, contexto, página, runtime, reloj y espera
   inyectables.
+- los planes reciben proveedor, ejecutor, reloj, cancelación y herramientas falsas.
 
 Esto permite verificar cada herramienta de manera independiente del parser y de un
 futuro LLM.
@@ -330,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 144 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 172 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -454,8 +455,8 @@ para saltar versiones o decisiones del usuario.
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
 | v0.4 | Automatización de navegador con Playwright | Completada |
-| v0.4.1 | Consola local mínima y persistente | Próxima; decisión técnica pendiente |
-| v0.5 | Tareas de varios pasos | Pendiente |
+| v0.4.1 | Consola local mínima y persistente | Completada |
+| v0.5 | Tareas de varios pasos | Completada |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
 | v0.8 | Mouse y teclado con límites | Pendiente |
@@ -674,3 +675,27 @@ publicado, se instaló para el usuario sin modificar PATH y se comprobó Tk 8.6.
 suite completa suma 154 pruebas. Un smoke real creó la ventana, actualizó el layout y
 cerró el worker; el control visible automatizado no recibió a tiempo permiso de
 Windows y fue omitido de forma segura.
+
+## 21. Estado de implementación de v0.5
+
+v0.5 agrega planes explícitos de entre dos y cinco pasos sin cambiar el contrato de
+seguridad del ejecutor. `TaskPlanner` intenta primero una composición determinista de
+órdenes conocidas separadas por `;`, `luego` o `y después`. El fallback de IA sigue
+siendo opcional, comparte el límite mensual de USD 1,00 y solicita un único JSON con
+esquema estricto; no se realizaron llamadas reales.
+
+La propuesta externa solo expresa intención y destino. `validate_plan_proposal`
+reconstruye cada `Action` desde catálogos locales, y `TaskPlanValidator` comprueba el
+plan completo —cantidad, identificadores, intención, herramienta, argumentos, riesgo,
+confirmación y registro— antes del primer efecto. Un paso inválido rechaza todo el
+plan.
+
+`TaskPlanExecutor` ejecuta secuencialmente, sin reintentos ni bucles. Tiene un límite
+predeterminado de treinta segundos, cancelación entre pasos y estados explícitos para
+éxito, fallo, cancelación, timeout y pasos omitidos. Los logs guardan identificador,
+herramienta, estado y duración, pero no la orden ni sus argumentos.
+
+La CLI expone esta capacidad mediante `--plan`. La demostración local abrió dos URLs
+permitidas mediante herramientas falsas y el entrypoint real ejecutó dos detenciones
+idempotentes sin iniciar Chromium. La suite completa suma 172 pruebas locales. La
+decisión y el contrato detallados están en [V0.5_ARCHITECTURE.md](V0.5_ARCHITECTURE.md).

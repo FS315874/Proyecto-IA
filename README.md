@@ -4,10 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.4.1 — Local Control Console**. Conserva la
-automatización verificada de YouTube de v0.4 y agrega una ventana local persistente
-para enviar órdenes, observar estado, latencia y uso de IA, detener la reproducción y
-cerrar el agente sin usar Codex como intermediario cotidiano.
+La versión ejecutable actual es **v0.5 — Tareas de varios pasos**. Conserva la
+consola local persistente de v0.4.1 y agrega planes secuenciales, acotados y
+completamente validados antes del primer efecto. No hay bucles libres, reintentos
+autónomos ni herramientas inventadas por un modelo.
 
 ## Funcionalidades
 
@@ -39,16 +39,23 @@ pone lofi hip hop en youtube
 detener youtube
 ```
 
+Ejecutar entre dos y cinco acciones conocidas como un único plan:
+
+```powershell
+python -m desktop_agent --plan "abrir youtube luego abrir github"
+python -m desktop_agent --plan "poné lofi en youtube y después detener youtube"
+```
+
 ## Arquitectura resumida
 
 ```text
 Usuario
-  -> CLI o ventana Tkinter/ttk
+  -> CLI, modo --plan o ventana Tkinter/ttk
   -> controlador local persistente y cola serial
-  -> HybridInterpreter
+  -> HybridInterpreter o TaskPlanner
        ├── parser determinista
        └── presupuesto mensual -> ProposalProvider opcional
-  -> Action (Intent + RiskLevel + RequiresConfirmation)
+  -> Action o TaskPlan validado por completo
   -> ActionExecutor
   -> herramienta registrada
        ├── open_url
@@ -105,6 +112,8 @@ adaptador y un backend Playwright de YouTube. WEB-08 registra el controlador en 
 sin iniciar Chromium hasta recibir una orden de reproducción.
 v0.4.1 no agrega una dependencia de paquete: Tkinter pertenece a una instalación
 completa de CPython. El controlador y la UI comparten el mismo núcleo que la CLI.
+v0.5 tampoco agrega dependencias: el planificador reutiliza el catálogo, el ejecutor,
+el presupuesto y el adaptador de Responses existente.
 
 ## Requisitos
 
@@ -172,7 +181,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.4.1 — escribí 'salir' para terminar.
+Desktop Agent v0.5.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -185,6 +194,15 @@ También se puede ejecutar una única instrucción:
 python -m desktop_agent "abrir youtube"
 python -m desktop_agent "abrir vscode"
 python -m desktop_agent "poné en youtube qué tan malo puedo ser"
+```
+
+El modo de planes se habilita explícitamente con `--plan`. Primero intenta separar
+órdenes deterministas mediante `;`, `luego` o `y después`. Si eso no alcanza y la IA
+está habilitada, solicita un JSON estricto de dos a cinco pasos. Cada paso se vuelve a
+construir con datos locales y el plan completo se valida antes de ejecutar nada:
+
+```powershell
+python -m desktop_agent --plan "abrir youtube luego abrir github"
 ```
 
 En modo interactivo, la reproducción continúa mientras se ingresan nuevas órdenes;
@@ -254,7 +272,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 154 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 172 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -360,7 +378,9 @@ desktop_agent/
 ├── interpretation.py
 ├── logging_config.py
 ├── models.py
+├── openai_plan_provider.py
 ├── parser.py
+├── plans.py
 ├── playwright_backend.py
 ├── usage_budget.py
 └── tools/
@@ -371,7 +391,9 @@ docs/
 ├── IMPLEMENTATION_ROADMAP.md
 ├── PROJECT_DOCUMENTATION.md
 ├── V0.3_ARCHITECTURE_PROPOSAL.md
-└── V0.4_ARCHITECTURE_PROPOSAL.md
+├── V0.4_ARCHITECTURE_PROPOSAL.md
+├── V0.4.1_ARCHITECTURE.md
+└── V0.5_ARCHITECTURE.md
 scripts/
 └── web07_manual_check.py
 tests/
@@ -387,8 +409,10 @@ tests/
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
   completada; la CLI reproduce y detiene YouTube mediante Chromium aislado, con
   verificación DOM, sesión persistente y fallos estructurados.
-- **v0.4.1 — Local Control Console:** próximo incremento acordado; interfaz mínima,
-  proceso local persistente, estado, métricas y detención de emergencia.
+- **v0.4.1 — Local Control Console:** completada; interfaz mínima, proceso local
+  persistente, estado, métricas y detención de emergencia.
+- **v0.5 — Tareas de varios pasos:** completada; planes de dos a cinco acciones,
+  validación total previa, límites de tiempo, cancelación y resultados por paso.
 
 ## Autoría y componentes externos
 
@@ -402,6 +426,7 @@ Construido en el proyecto:
 - contrato, política y adaptador semántico de navegación segura;
 - backend DOM acotado y flujo vertical de YouTube;
 - adaptador seguro de propuestas para OpenAI;
+- contrato, validación y ejecución acotada de planes de varios pasos;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

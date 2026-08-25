@@ -17,7 +17,11 @@ class ActionExecutor:
         self._tools = dict(tools)
         self._logger = logger
 
-    def execute(self, action: Action) -> ToolResult:
+    def validate(self, action: Action) -> None:
+        """Comprueba una acción sin producir ningún efecto."""
+
+        if not isinstance(action, Action):
+            raise ActionExecutionError("La acción no cumple el contrato local.")
         if action.risk_level is not RiskLevel.SAFE or action.requires_confirmation:
             raise ActionExecutionError(
                 "La acción no es segura sin confirmación. "
@@ -29,6 +33,10 @@ class ActionExecutor:
             raise ActionExecutionError(
                 f"La herramienta '{action.tool_name}' no está registrada."
             )
+
+    def execute(self, action: Action) -> ToolResult:
+        self.validate(action)
+        tool = self._tools[action.tool_name]
 
         self._logger.info("Tool: %s", action.tool_name)
         try:

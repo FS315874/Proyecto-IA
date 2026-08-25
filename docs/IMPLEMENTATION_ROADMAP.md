@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.4.1 completada y v0.5 habilitada.
+> Estado comprobado del producto: v0.5 completada y v0.6 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -199,8 +199,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
 | v0.4 | Automatización de navegador | `COMPLETADO` | Ninguno. |
 | v0.4.1 | Consola local mínima | `COMPLETADO` | Ninguno. |
-| v0.5 | Tareas de varios pasos | `PENDIENTE` | Ejecutar PLAN-01. |
-| v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
+| v0.5 | Tareas de varios pasos | `COMPLETADO` | Ninguno. |
+| v0.6 | Observación mediante screenshots | `PENDIENTE` | Ejecutar OBS-01. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
 | v0.8 | Mouse y teclado con límites | `PENDIENTE` | Solo después de cerrar v0.7. |
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Solo después de cerrar v0.8. |
@@ -703,15 +703,21 @@ acciones conocidas, manteniendo validación y ejecución separadas.
 
 ### Secuencia
 
-1. `PLAN-01`: diseñar `TaskPlan`, `PlanStep` y estados de paso.
-2. `PLAN-02`: definir cantidad máxima de acciones, duración y cero ejecución parcial
-   cuando el plan sea inválido.
-3. `PLAN-03`: validar todas las acciones contra catálogo y política local.
-4. `PLAN-04`: implementar ejecución secuencial con resultados estructurados.
-5. `PLAN-05`: agregar cancelación entre pasos.
-6. `PLAN-06`: registrar paso, herramienta, duración, éxito, fallo o cancelación.
-7. `PLAN-07`: probar planes válidos, inválidos, demasiado largos y fallos intermedios.
-8. `PLAN-08`: demostrar una tarea web de varios pasos y cerrar la versión.
+1. `PLAN-01` — `COMPLETADO`: `TaskPlan`, `PlanStep`, estados y resultados son
+   contratos inmutables y versionados.
+2. `PLAN-02` — `COMPLETADO`: máximo cinco acciones y treinta segundos; un plan
+   inválido se rechaza antes del primer efecto.
+3. `PLAN-03` — `COMPLETADO`: cada acción se reconstruye y valida contra catálogo,
+   intención, herramienta registrada, argumentos, riesgo y confirmación.
+4. `PLAN-04` — `COMPLETADO`: ejecución secuencial sin reintentos y resultados
+   estructurados por paso y por plan.
+5. `PLAN-05` — `COMPLETADO`: token de cancelación comprobado entre pasos.
+6. `PLAN-06` — `COMPLETADO`: logs de estado, herramienta y duración sin argumentos
+   ni texto de la orden.
+7. `PLAN-07` — `COMPLETADO`: cobertura de planes válidos, inválidos, demasiado
+   largos, cancelación, timeout y fallo intermedio sin efectos parciales inválidos.
+8. `PLAN-08` — `COMPLETADO`: demostración local de dos pasos web y comando seguro
+   real de detención; 172 pruebas locales aprobadas, sin llamadas de IA.
 
 No se permiten todavía bucles libres, reintentos autónomos ni nuevas herramientas
 inventadas por el modelo.
@@ -1074,7 +1080,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `PLAN-01 — Contrato de planes` de v0.5. El usuario
+El primer paso no completado es `OBS-01 — Contrato de observación` de v0.6. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
