@@ -4,11 +4,11 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.12 — Aplicación y servicio local**. La consola
-Tkinter usa una fachada de servicio dentro del proceso, sin abrir puertos. Muestra
-historial y estados por tarea, herramienta activa, resultado, evidencia, uso y
-latencia; incorpora confirmaciones exactas, cancelación, stop, emergencia y suspensión
-segura al bloquearse o volverse incierta la sesión de Windows.
+La versión ejecutable actual es **v0.13 — Entrada por voz local**. La aplicación usa
+reconocimiento español de Windows sólo después de pulsar el botón, conserva el audio
+en el proceso local y muestra una transcripción editable antes de enviarla al mismo
+pipeline de órdenes. No hay escucha permanente, archivos de audio, servicio externo ni
+confirmación verbal de acciones sensibles.
 
 ## Funcionalidades
 
@@ -124,8 +124,9 @@ mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas r
 v0.8 usa controles Win32 y mensajes dirigidos antes que mouse global. No agrega una
 dependencia y mantiene `Ctrl+Alt+Esc` como atajo de emergencia mientras el backend de
 input está activo.
-v0.9 a v0.12 usan solamente la biblioteca estándar. El bucle, las recetas, la
-política, el servicio local y Tkinter no agregan servicios externos ni paquetes.
+v0.9 a v0.13 usan solamente la biblioteca estándar. La voz usa `System.Speech` y
+Windows PowerShell mediante un helper fijo incluido en el paquete; no agrega una
+dependencia Python, red o modelo externo.
 
 ## Requisitos
 
@@ -190,6 +191,16 @@ Windows, no escucha sockets y no persiste el historial. Si la sesión interactiv
 bloquea o no puede comprobarse, suspende entradas y solicita una detención de
 emergencia. El desbloqueo no reanuda automáticamente: requiere el botón `Reanudar`.
 
+`Hablar una frase` activa el micrófono sólo para una captura de hasta diez segundos.
+Windows intenta `es-UY` y, si no está instalado, usa otro reconocedor español. La
+transcripción aparece en un campo editable y sólo `Enviar transcripción` la convierte
+en una orden normal. Una baja confianza se muestra como ambigua; silencio, timeout,
+backend ausente y cancelación no ejecutan nada. Las frases exactas `cancelar agente`,
+`detener agente` y `parar agente` son el único canal verbal inmediato y sólo solicitan
+la detención de emergencia. La voz nunca aprueba el panel de confirmación.
+El reconocimiento de audio es local; después de revisar y enviar el texto se aplica la
+misma configuración opt-in de IA que a una orden escrita, incluido el presupuesto.
+
 Iniciá el modo interactivo desde la raíz del proyecto:
 
 ```powershell
@@ -199,7 +210,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.12.0 — escribí 'salir' para terminar.
+Desktop Agent v0.13.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -304,9 +315,15 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 290 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 304 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
+
+`python -m scripts.voice13_qa_check` renderiza la UI con un backend de voz falso,
+permite corregir una frase y comprueba la cancelación verbal exacta. No abre el
+micrófono ni usa red. Una consulta separada y read-only confirmó que esta instalación
+de Windows dispone de reconocimiento `es-ES`; la grabación real fue omitida por
+privacidad.
 
 WEB-07 dispone además de un runner manual separado. Estos comandos abren Chromium
 visible y usan red; no forman parte de la suite normal:
@@ -426,12 +443,14 @@ desktop_agent/
 ├── recipes.py
 ├── tk_app.py
 ├── usage_budget.py
+├── voice.py
 ├── vision.py
 ├── vision_config.py
 ├── vision_runtime.py
 ├── windows_capture.py
 ├── windows_input.py
 ├── windows_session.py
+├── windows_speech.py
 └── tools/
     ├── applications.py
     ├── browser.py
@@ -449,11 +468,13 @@ docs/
 ├── V0.9_ARCHITECTURE.md
 ├── V0.10_ARCHITECTURE.md
 ├── V0.11_ARCHITECTURE.md
-└── V0.12_ARCHITECTURE.md
+├── V0.12_ARCHITECTURE.md
+└── V0.13_ARCHITECTURE.md
 scripts/
 ├── policy11_qa_check.py
 ├── recipe10_qa_check.py
 ├── ui12_smoke_check.py
+├── voice13_qa_check.py
 └── web07_manual_check.py
 tests/
 ```
@@ -486,6 +507,8 @@ tests/
   confirmaciones exactas de un uso y efectos que permanecen siempre bloqueados.
 - **v0.12 — Aplicación y servicio local:** completada; historial y evidencia visibles,
   confirmaciones, cancelación y suspensión segura de sesión, sin abrir puertos.
+- **v0.13 — Entrada por voz local:** completada; captura explícita, transcripción
+  editable, métricas, cancelación verbal segura y cero envío externo de audio.
 
 ## Autoría y componentes externos
 
@@ -507,11 +530,14 @@ Construido en el proyecto:
 - catálogo, persistencia y runner de recetas semánticas aprobadas;
 - política por capacidades y broker de confirmaciones locales o remotas;
 - fachada de servicio local, historial de tareas y monitor de sesión Windows;
+- contrato, controlador y adaptador local de reconocimiento de voz para Windows;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:
 
 - Python y su biblioteca estándar;
+- `System.Speech` y Windows PowerShell para reconocimiento local cuando Windows ofrece
+  un reconocedor español;
 - SDK oficial `openai==3.3.1`, licencia Apache-2.0, declarado para v0.3;
 - OpenAI Responses API y `gpt-5.6-luna` como servicio y modelo seleccionados, aún
   sin llamadas reales;

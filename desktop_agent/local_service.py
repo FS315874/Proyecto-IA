@@ -49,6 +49,7 @@ class ServiceState(str, Enum):
 
 class TaskKind(str, Enum):
     COMMAND = "command"
+    VOICE_COMMAND = "voice_command"
     POLICY_ACTION = "policy_action"
 
 
@@ -276,6 +277,20 @@ class DesktopAgentService:
             )
             self._logger.info(
                 "Local service: task=%s kind=command status=QUEUED",
+                request_id,
+            )
+            return request_id
+
+    def submit_voice_transcript(self, transcript: str) -> str:
+        with self._lock:
+            if self._pending_confirmation is not None:
+                raise ServiceError(
+                    "La voz no puede resolver una confirmación pendiente."
+                )
+            request_id = self.submit(transcript)
+            self._replace_task(request_id, kind=TaskKind.VOICE_COMMAND)
+            self._logger.info(
+                "Local service: task=%s origin=voice status=QUEUED",
                 request_id,
             )
             return request_id

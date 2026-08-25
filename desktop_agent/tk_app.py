@@ -27,7 +27,16 @@ from desktop_agent.provider_config import (
     load_provider_config,
 )
 from desktop_agent.usage_budget import MonthlyUsageLedger, UsageLedgerError
+from desktop_agent.voice import (
+    VoiceController,
+    VoiceError,
+    VoiceResultStatus,
+    VoiceState,
+    VoiceUpdate,
+    is_voice_cancel_command,
+)
 from desktop_agent.windows_session import WindowsSessionMonitor
+from desktop_agent.windows_speech import WindowsSpeechBackend
 
 POLL_INTERVAL_MS = 80
 
@@ -66,12 +75,18 @@ def _read_initial_usage(
 class TkDesktopAgentApp:
     """Vista Tkinter del servicio; no contiene lógica de ejecución."""
 
-    def __init__(self, root: object, service: DesktopAgentService) -> None:
+    def __init__(
+        self,
+        root: object,
+        service: DesktopAgentService,
+        voice: VoiceController | None = None,
+    ) -> None:
         import tkinter as tk
         from tkinter import ttk
 
         self._root = root
         self._service = service
+        self._voice = voice
         self._tk = tk
         self._ttk = ttk
         self._closing = False
@@ -87,7 +102,7 @@ class TkDesktopAgentApp:
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(5, weight=1)
+        frame.rowconfigure(6, weight=1)
 
         ttk.Label(frame, text="Orden").grid(
             row=0, column=0, sticky="w", pady=(0, 4)
@@ -103,8 +118,46 @@ class TkDesktopAgentApp:
         )
         self._execute.grid(row=0, column=1)
 
+        voice_frame = ttk.LabelFrame(frame, text="Voz local", padding=8)
+        voice_frame.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        voice_frame.columnconfigure(2, weight=1)
+        self._voice_start = ttk.Button(
+            voice_frame,
+            text="Hablar una frase",
+            command=self._start_voice,
+            state="normal" if voice is not None else "disabled",
+        )
+        self._voice_start.grid(row=0, column=0, padx=(0, 6))
+        self._voice_cancel = ttk.Button(
+            voice_frame,
+            text="Cancelar voz",
+            command=self._cancel_voice,
+            state="disabled",
+        )
+        self._voice_cancel.grid(row=0, column=1, padx=(0, 8))
+        self._transcript = ttk.Entry(voice_frame)
+        self._transcript.grid(row=0, column=2, sticky="ew", padx=(0, 8))
+        self._voice_submit = ttk.Button(
+            voice_frame,
+            text="Enviar transcripción",
+            command=self._submit_voice,
+            state="normal" if voice is not None else "disabled",
+        )
+        self._voice_submit.grid(row=0, column=3)
+        self._voice_status_text = tk.StringVar(
+            value=(
+                "Voz: audio local; el texto enviado usa la configuración de IA."
+                if voice is not None
+                else "Voz: backend no disponible."
+            )
+        )
+        ttk.Label(
+            voice_frame,
+            textvariable=self._voice_status_text,
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
+
         controls = ttk.Frame(frame)
-        controls.grid(row=2, column=0, sticky="ew", pady=10)
+        controls.grid(row=3, column=0, sticky="ew", pady=10)
         self._stop = ttk.Button(
             controls, text="Detener", command=self._request_stop
         )
@@ -140,7 +193,7 @@ class TkDesktopAgentApp:
         self._latency_text = tk.StringVar(value="Latencia: sin medición")
         self._tool_text = tk.StringVar(value="Herramienta activa: ninguna")
         status = ttk.Frame(frame)
-        status.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        status.grid(row=4, column=0, sticky="ew", pady=(0, 8))
         status.columnconfigure(0, weight=1)
         ttk.Label(status, textvariable=self._status_text).grid(
             row=0, column=0, sticky="w"
@@ -160,7 +213,7 @@ class TkDesktopAgentApp:
             text="Confirmación",
             padding=8,
         )
-        confirmation.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+        confirmation.grid(row=5, column=0, sticky="ew", pady=(0, 8))
         confirmation.columnconfigure(0, weight=1)
         self._confirmation_text = tk.StringVar(
             value="Sin confirmaciones pendientes."
@@ -185,7 +238,7 @@ class TkDesktopAgentApp:
         self._reject.grid(row=0, column=2, padx=(4, 0))
 
         body = ttk.Panedwindow(frame, orient="horizontal")
-        body.grid(row=5, column=0, sticky="nsew")
+        body.grid(row=6, column=0, sticky="nsew")
         history_frame = ttk.LabelFrame(body, text="Tareas", padding=8)
         result_frame = ttk.LabelFrame(body, text="Resultado y evidencia", padding=8)
         body.add(history_frame, weight=3)
@@ -249,6 +302,8 @@ class TkDesktopAgentApp:
         self._status_text.set("Estado: detención solicitada")
 
     def _request_emergency_stop(self) -> None:
+        if self._voice is not None:
+            self._voice.cancel()
         self._service.request_stop(emergency=True)
         self._status_text.set("Estado: EMERGENCIA solicitada")
 
@@ -256,11 +311,16 @@ class TkDesktopAgentApp:
         if self._closing:
             return
         self._closing = True
+        if self._voice is not None:
+            self._voice.cancel()
         self._set_controls_enabled(False)
         self._status_text.set("Estado: cerrando de forma segura")
         self._service.request_close()
 
     def _poll(self) -> None:
+        if self._voice is not None:
+            for update in self._voice.drain_updates():
+                self._apply_voice_update(update)
         for update in self._service.poll():
             self._apply_update(update)
         snapshot = self._service.snapshot
@@ -269,6 +329,81 @@ class TkDesktopAgentApp:
             self._root.destroy()
             return
         self._root.after(POLL_INTERVAL_MS, self._poll)
+
+    def _start_voice(self) -> None:
+        if self._voice is None:
+            return
+        if self._service.snapshot.state is not ServiceState.ACTIVE:
+            self._append("La voz requiere un servicio local activo.")
+            return
+        try:
+            self._voice.start()
+        except VoiceError as error:
+            self._append(str(error))
+
+    def _cancel_voice(self) -> None:
+        if self._voice is not None and self._voice.cancel():
+            self._voice_status_text.set("Voz: cancelación solicitada.")
+
+    def _submit_voice(self) -> None:
+        transcript = self._transcript.get()
+        try:
+            task_id = self._service.submit_voice_transcript(transcript)
+        except (ServiceError, ValueError) as error:
+            self._append(str(error))
+            return
+        self._status_text.set(f"Estado: voz enviada como {task_id}")
+
+    def _apply_voice_update(self, update: VoiceUpdate) -> None:
+        if update.state is VoiceState.LISTENING:
+            self._voice_status_text.set(
+                "Voz: escuchando una frase; Cancelar voz detiene la captura."
+            )
+            self._voice_start.configure(state="disabled")
+            self._voice_cancel.configure(state="normal")
+            return
+        self._voice_cancel.configure(state="disabled")
+        result = update.result
+        if result is None:
+            return
+        latency = (
+            f"captura {result.capture_ms:.0f} ms · "
+            f"transcripción {result.transcription_ms:.0f} ms · "
+            f"total {update.total_ms:.0f} ms"
+        )
+        if result.status in {
+            VoiceResultStatus.READY,
+            VoiceResultStatus.AMBIGUOUS,
+        }:
+            assert result.transcript is not None
+            self._transcript.delete(0, self._tk.END)
+            self._transcript.insert(0, result.transcript)
+            if (
+                result.status is VoiceResultStatus.READY
+                and is_voice_cancel_command(result.transcript)
+            ):
+                self._service.request_stop(emergency=True)
+                self._transcript.delete(0, self._tk.END)
+                self._voice_status_text.set(
+                    f"Voz: emergencia solicitada · {latency}"
+                )
+                return
+            prefix = (
+                "Voz: revisá y corregí la transcripción ambigua"
+                if result.status is VoiceResultStatus.AMBIGUOUS
+                else "Voz: revisá la transcripción antes de enviarla"
+            )
+            self._voice_status_text.set(f"{prefix} · {latency}")
+        elif result.status is VoiceResultStatus.NO_SPEECH:
+            self._voice_status_text.set(f"Voz: no se detectó una frase · {latency}")
+        elif result.status is VoiceResultStatus.CANCELLED:
+            self._voice_status_text.set(f"Voz: captura cancelada · {latency}")
+        elif result.status is VoiceResultStatus.UNAVAILABLE:
+            self._voice_status_text.set(
+                "Voz: Windows no tiene un reconocedor español disponible."
+            )
+        else:
+            self._voice_status_text.set("Voz: fallo local redactado.")
 
     def _apply_update(self, update: ControllerUpdate) -> None:
         if update.kind is ControllerUpdateKind.PROGRESS:
@@ -332,6 +467,8 @@ class TkDesktopAgentApp:
             self._reject.configure(state="normal")
         suspended = snapshot.state is ServiceState.SUSPENDED
         if suspended:
+            if self._voice is not None:
+                self._voice.cancel()
             self._status_text.set(
                 f"Estado: suspendido ({snapshot.suspension_reason})"
             )
@@ -468,6 +605,26 @@ class TkDesktopAgentApp:
         self._close.configure(
             state="disabled" if state is ServiceState.CLOSED else "normal"
         )
+        voice_available = self._voice is not None
+        listening = (
+            voice_available and self._voice.state is VoiceState.LISTENING
+        )
+        self._voice_start.configure(
+            state=(
+                "normal"
+                if active and voice_available and not listening
+                else "disabled"
+            )
+        )
+        self._voice_cancel.configure(
+            state="normal" if listening else "disabled"
+        )
+        self._voice_submit.configure(
+            state="normal" if active and voice_available else "disabled"
+        )
+        self._transcript.configure(
+            state="normal" if active and voice_available else "disabled"
+        )
 
     def _set_controls_enabled(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
@@ -477,6 +634,10 @@ class TkDesktopAgentApp:
         self._emergency.configure(state=state)
         self._cancel.configure(state=state)
         self._resume.configure(state=state)
+        self._voice_start.configure(state=state)
+        self._voice_cancel.configure(state=state)
+        self._voice_submit.configure(state=state)
+        self._transcript.configure(state=state)
         self._close.configure(state=state)
 
 
@@ -501,6 +662,7 @@ def run_gui(environ: Mapping[str, str] | None = None) -> int:
 
     controller: LocalAgentController | None = None
     service: DesktopAgentService | None = None
+    voice: VoiceController | None = None
     try:
         logger = configure_logging()
         from desktop_agent.cli import build_executor, build_interpreter
@@ -522,14 +684,19 @@ def run_gui(environ: Mapping[str, str] | None = None) -> int:
             logger,
             session_monitor=WindowsSessionMonitor(),
         )
+        voice = VoiceController(WindowsSpeechBackend(), logger)
         root = tk.Tk()
-        TkDesktopAgentApp(root, service)
+        TkDesktopAgentApp(root, service, voice)
         root.mainloop()
-        return 0 if service.close(timeout=10.0) else 1
+        voice_closed = voice.close(timeout=2.0)
+        service_closed = service.close(timeout=10.0)
+        return 0 if voice_closed and service_closed else 1
     except (OSError, tk.TclError) as error:
         print(f"No se pudo iniciar la interfaz: {error}", file=sys.stderr)
         return 1
     finally:
+        if voice is not None:
+            voice.close(timeout=1.0)
         if service is not None:
             service.close(timeout=1.0)
         elif controller is not None:

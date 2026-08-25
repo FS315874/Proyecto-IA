@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 290 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 304 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -464,7 +464,7 @@ para saltar versiones o decisiones del usuario.
 | v0.10 | Recuperación y estrategias alternativas | Completada |
 | v0.11 | Confirmaciones y permisos completos | Completada |
 | v0.12 | Interfaz de escritorio | Completada |
-| v0.13 | Entrada por voz | Pendiente |
+| v0.13 | Entrada por voz | Completada |
 | v0.14 | Control remoto propio | Pendiente |
 
 El roadmap es una orientación, no un compromiso de implementar módulos antes de
@@ -907,3 +907,36 @@ Dieciséis pruebas nuevas cubren historial, herramienta activa, cancelación, po
 límites, ciclo de vida y estados de sesión. Un smoke con Tk 8.6 real construyó la vista
 oculta, procesó una orden ficticia, verificó evidencia y cerró sin red ni efectos
 externos. La suite suma 290 pruebas.
+
+## 29. Estado de implementación de v0.13
+
+v0.13 adopta reconocimiento local de Windows. Un helper PowerShell fijo carga
+`System.Speech`, elige `es-UY`, `es-AR` o `es-ES` y usa el micrófono predeterminado
+durante una sola frase de hasta diez segundos. El audio va directamente al motor del
+sistema: no se escribe en disco, no se envía a OpenAI ni a otra red y no requiere una
+clave o presupuesto. El helper forma parte del paquete y no contiene texto generado.
+
+`WindowsSpeechBackend` inicia el helper sin shell, ventana ni `-Command`, impone un
+timeout adicional, permite cancelarlo y acepta solo un JSON de esquema cerrado. Texto,
+confianza, cultura y tiempos vuelven a validarse en Python. La baja confianza produce
+`AMBIGUOUS`; silencio, helper ausente, timeout o salida inválida no generan una orden.
+Stdout, stderr y transcripción nunca se agregan al log.
+
+`VoiceController` inicia únicamente por un gesto explícito, usa un worker cancelable y
+emite estados y métricas. La UI muestra captura, transcripción y total; el servicio ya
+mide interpretación y ejecución. La transcripción queda editable y sólo el botón de
+envío usa `submit_voice_transcript`, que atraviesa el mismo `CommandProcessor` que CLI
+y GUI. Una confirmación pendiente bloquea ese origen: decir `sí` nunca aprueba nada.
+Tras el envío explícito, el texto puede usar el fallback opt-in de IA y su presupuesto
+igual que una orden escrita; el audio no se adjunta ni abandona Windows.
+
+Las frases exactas `cancelar agente`, `detener agente` y `parar agente` con resultado
+no ambiguo solicitan emergencia inmediatamente. Esa excepción solo reduce efectos. La
+palabra de activación se evaluó y se descartó porque exigiría escucha permanente.
+
+Catorce pruebas nuevas cubren contrato, privacidad, silencio, baja confianza, frases
+incompletas, esquema, helper ausente, timeout, cancelación y servicio. Un QA oculto con
+Tk 8.6 y backend falso corrigió una transcripción antes de enviarla y verificó la
+cancelación verbal, sin micrófono ni red. Una consulta real sin captura confirmó que
+Windows dispone de `en-US` y `es-ES`; se omitió grabar audio real. La suite suma 304
+pruebas.

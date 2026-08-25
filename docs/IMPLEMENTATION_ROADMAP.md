@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.12 completada y v0.13 habilitada.
+> Estado comprobado del producto: v0.13 completada y v0.14 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -207,8 +207,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.10 | Recuperación y memoria procedural | `COMPLETADO` | Ninguno. |
 | v0.11 | Confirmaciones y permisos completos | `COMPLETADO` | Ninguno. |
 | v0.12 | Aplicación de escritorio y servicio local | `COMPLETADO` | Ninguno. |
-| v0.13 | Entrada por voz | `PENDIENTE` | Ejecutar VOICE-01. |
-| v0.14 | Control remoto propio | `PENDIENTE` | Solo después de cerrar v0.13. |
+| v0.13 | Entrada por voz | `COMPLETADO` | Ninguno. |
+| v0.14 | Control remoto propio | `PENDIENTE` | Ejecutar REMOTE-01. |
 
 Las versiones posteriores a v0.12 extienden la visión original y deberán revisarse
 cuando se acerquen. Su presencia no autoriza incorporarlas antes de tiempo.
@@ -957,14 +957,22 @@ Transformar audio en el mismo `UserCommand` utilizado por CLI y GUI.
 
 ### Secuencia
 
-1. decidir reconocimiento local o externo y política de privacidad;
-2. comenzar con pulsar-para-hablar, no escucha permanente;
-3. mostrar y permitir corregir la transcripción;
-4. separar confirmación verbal de una orden original;
-5. soportar cancelación por voz y por botón;
-6. medir latencia de captura, transcripción, interpretación y ejecución;
-7. probar ruido, frases incompletas y comandos ambiguos;
-8. evaluar palabra de activación solo después de validar el flujo base.
+1. `VOICE-01` — `COMPLETADO`: se eligió `System.Speech` local; el audio no se guarda,
+   sale del equipo, usa credenciales ni genera costo.
+2. `VOICE-02` — `COMPLETADO`: cada captura requiere el botón y dura como máximo diez
+   segundos; no existe escucha permanente o proceso de voz previo al gesto.
+3. `VOICE-03` — `COMPLETADO`: la transcripción se normaliza, limita a 500 caracteres,
+   muestra en un campo editable y requiere envío explícito al pipeline común.
+4. `VOICE-04` — `COMPLETADO`: una orden vocal nunca resuelve una confirmación pendiente;
+   el servicio conserva la decisión local exacta de v0.11.
+5. `VOICE-05` — `COMPLETADO`: botón de cancelación termina el helper; las frases exactas
+   cancelar/detener/parar agente solicitan únicamente emergencia.
+6. `VOICE-06` — `COMPLETADO`: UI y eventos separan captura, transcripción y total de
+   voz; interpretación y ejecución conservan la latencia de servicio existente.
+7. `VOICE-07` — `COMPLETADO`: catorce pruebas cubren silencio, baja confianza, frase
+   incompleta, timeout, esquema, cancelación, privacidad e integración.
+8. `VOICE-08` — `COMPLETADO`: QA con Tk real y backend falso valida edición, envío y
+   cancelación verbal. Se descarta palabra de activación por exigir escucha permanente.
 
 ## 18. v0.14 — Control remoto propio
 
@@ -1146,7 +1154,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `VOICE-01 — Política de privacidad` de v0.13. El usuario
+El primer paso no completado es `REMOTE-01 — Modelo de amenazas` de v0.14. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o

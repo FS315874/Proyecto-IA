@@ -472,6 +472,22 @@ class DesktopAgentServicePermissionTests(ServiceTestSupport, unittest.TestCase):
                 self.policy_subject(action_id="policy-action-2")
             )
 
+    def test_voice_transcript_uses_command_pipeline_but_never_confirms(self) -> None:
+        coordinator, _ = self.build_policy()
+        service, _, _ = self.build_service(policy=coordinator)
+
+        voice_task = service.submit_voice_transcript("abrir calculadora")
+        snapshot = self.wait_for(
+            service,
+            lambda value: value.history[-1].state.terminal,
+        )
+        self.assertEqual(snapshot.history[-1].task_id, voice_task)
+        self.assertEqual(snapshot.history[-1].kind.value, "voice_command")
+
+        service.submit_policy_action(self.policy_subject())
+        with self.assertRaisesRegex(ServiceError, "voz no puede resolver"):
+            service.submit_voice_transcript("sí")
+
 
 if __name__ == "__main__":
     unittest.main()
