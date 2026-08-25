@@ -4,10 +4,12 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.2 — Application Launcher**. La rama de trabajo
-de v0.3 incorpora su primer núcleo interno: contrato de propuestas, validación local,
-construcción segura de acciones e intérprete híbrido probado con un proveedor falso.
-Todavía no hay un modelo de IA real ni cambios en el uso de la CLI.
+La versión ejecutable actual es **v0.3 — Natural Language**. Incorpora un intérprete
+híbrido, validación y construcción local de acciones, configuración segura y un
+adaptador opt-in para OpenAI. El proveedor permanece deshabilitado por defecto.
+También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 por
+defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
+no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
 
 ## Funcionalidades
 
@@ -27,15 +29,18 @@ abrir vscode
 abrir calculadora
 ```
 
-También se aceptan variantes como `abrí VS Code` y `abrir Visual Studio Code`.
-Cualquier instrucción desconocida se rechaza sin ejecutar acciones.
+También se aceptan variantes deterministas como `abrí VS Code` y
+`abrir Visual Studio Code`. Una instrucción desconocida solo puede usar el fallback
+externo si se habilitó expresamente; en otro caso se rechaza sin ejecutar acciones.
 
 ## Arquitectura resumida
 
 ```text
 Usuario
   -> CLI
-  -> parser determinista
+  -> HybridInterpreter
+       ├── parser determinista
+       └── presupuesto mensual -> ProposalProvider opcional
   -> Action (Intent + RiskLevel + RequiresConfirmation)
   -> ActionExecutor
   -> herramienta registrada
@@ -48,7 +53,7 @@ El texto del usuario nunca se ejecuta como código o como comando de shell. El
 parser solo genera acciones incluidas en un catálogo y el ejecutor únicamente
 invoca herramientas registradas.
 
-El primer incremento interno de v0.3 agrega, sin conectarlo a la CLI:
+La integración de v0.3 agrega este fallback a la CLI:
 
 ```text
 parser determinista
@@ -59,10 +64,17 @@ parser determinista
 ```
 
 El proveedor no puede elegir herramientas, URLs, ejecutables, argumentos, riesgo ni
-confirmaciones. Esos valores siguen bajo control del código local.
+confirmaciones. Esos valores siguen bajo control del código local. La configuración
+externa también permanece deshabilitada por defecto y no conserva una credencial
+cuando está apagada. El adaptador usa una única salida con JSON Schema estricto y
+devuelve datos que el dominio vuelve a validar.
 
 La documentación técnica completa está en
 [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
+
+La secuencia operativa para continuar el desarrollo con instrucciones breves como
+`seguí al siguiente paso`, incluidos checkpoints de decisión y pruebas manuales, está
+en [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
 
 ## Tecnologías
 
@@ -73,7 +85,9 @@ La documentación técnica completa está en
 - `logging` para el registro persistente.
 - `unittest` para las pruebas automatizadas.
 
-No hay dependencias de terceros ni es necesario ejecutar `pip install`.
+El camino determinista continúa usando solo la biblioteca estándar. v0.3 declara
+`openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
+fallback, por lo que los comandos deterministas no inicializan el SDK.
 
 ## Requisitos
 
@@ -97,7 +111,11 @@ git clone https://github.com/FS315874/Proyecto-IA.git
 cd Proyecto-IA
 ```
 
-No se requieren pasos adicionales de instalación para v0.2.
+Instalá el proyecto y su dependencia declarada con:
+
+```powershell
+python -m pip install .
+```
 
 ## Uso
 
@@ -110,7 +128,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.2 — escribí 'salir' para terminar.
+Desktop Agent v0.3 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -123,6 +141,40 @@ También se puede ejecutar una única instrucción:
 python -m desktop_agent "abrir youtube"
 python -m desktop_agent "abrir vscode"
 ```
+
+El fallback opt-in de v0.3 requiere que la dependencia declarada esté
+instalada, que `OPENAI_API_KEY` ya exista de forma segura en el entorno y un opt-in
+explícito. La clave no debe pasarse como argumento ni guardarse en el repositorio:
+
+```powershell
+$env:DESKTOP_AGENT_AI_ENABLED = "true"
+$env:DESKTOP_AGENT_AI_TIMEOUT_SECONDS = "5"
+$env:DESKTOP_AGENT_AI_MONTHLY_BUDGET_USD = "1.00"
+python -m desktop_agent "quiero usar la calculadora"
+```
+
+Si el opt-in está ausente, la configuración es inválida o el proveedor falla, no se
+construye una acción externa. Una llamada real usaría un servicio con costo y todavía
+no forma parte de las validaciones automatizadas realizadas en el proyecto.
+
+`DESKTOP_AGENT_AI_MONTHLY_BUDGET_USD` es opcional: vale `1.00` si está ausente y
+acepta importes entre `0.01` y `1000`. El registro usa el mes calendario local y se
+guarda fuera del repositorio en `%LOCALAPPDATA%\DesktopAgent\ai_usage.json`; si
+`LOCALAPPDATA` no está disponible, usa `~/.desktop_agent/ai_usage.json`. Conserva por
+mes cantidad de solicitudes, tokens de entrada, salida, caché y total, costo estimado,
+solicitudes sin medición y reservas pendientes. Nunca guarda la orden, la respuesta
+ni la API key.
+
+Después de cada fallback externo, la CLI muestra el acumulado, por ejemplo:
+
+```text
+Uso IA 2026-08: 30 tokens, USD 0.000011 de USD 1.00.
+```
+
+Antes de llamar al proveedor se reserva conservadoramente USD 0,01. Al recibir la
+telemetría, esa reserva se reemplaza por el costo estimado de la solicitud. Si queda
+menos de esa reserva, el archivo es inválido o no se puede actualizar, la llamada se
+bloquea y no se ejecuta ninguna acción. Cambiar el límite no borra el historial.
 
 Para terminar el modo interactivo:
 
@@ -151,6 +203,7 @@ python -m unittest discover -s tests -v
 
 Las pruebas usan navegadores, buscadores de ejecutables e iniciadores de procesos
 falsos. Por eso pueden verificar las herramientas sin abrir ventanas reales.
+El cierre de v0.3 contiene 80 pruebas locales aprobadas.
 
 Cobertura funcional actual:
 
@@ -162,25 +215,36 @@ Cobertura funcional actual:
 - fallos al iniciar un proceso;
 - herramientas no registradas;
 - bloqueo de acciones no seguras;
-- coordinación de la CLI.
+- coordinación determinista e híbrida de la CLI;
 - contrato y validación estricta de propuestas;
 - construcción local de acciones desde destinos canónicos;
 - prioridad del parser determinista y fallback con proveedor falso;
-- rechazo seguro de respuestas inválidas, no soportadas o fuera del catálogo.
+- rechazo seguro de respuestas inválidas, no soportadas o fuera del catálogo;
+- configuración inválida y fallos externos sin ejecución de herramientas;
+- camino, estado y duración de interpretación sin registrar la orden completa;
+- uso numérico y costo aproximado cuando el proveedor los informa;
+- acumulación y persistencia mensual, cambio de mes, reserva previa y bloqueo por
+  presupuesto o registro inválido;
+- aceptación simulada del comando exacto, tres frases naturales acordadas, destino
+  fuera del catálogo, proveedor deshabilitado, fallo y límite mensual.
 
 ## Logging
 
 La aplicación crea `logs/agent.log` al ejecutarse:
 
 ```text
-[15:32:01] User: abrir calculadora
+[15:32:01] Command received
+[15:32:01] Interpretation: path=external status=success duration_ms=125.000 provider_configured=true provider=openai model=gpt-5.6-luna input_tokens=25 output_tokens=5 total_tokens=30 estimated_cost_usd=0.0000110000 monthly=2026-08 monthly_requests=1 monthly_input_tokens=25 monthly_output_tokens=5 monthly_total_tokens=30 monthly_estimated_cost_usd=0.0000110000 monthly_budget_usd=1.00 monthly_remaining_usd=0.9999890000 monthly_unmetered_requests=0 monthly_pending_reservations=0
 [15:32:01] Intent: OPEN_APPLICATION
 [15:32:01] Application: calculator
 [15:32:01] Tool: open_application
 [15:32:01] Status: SUCCESS
 ```
 
-Los logs locales están excluidos de Git.
+Los logs locales están excluidos de Git. La observabilidad de interpretación no
+registra el texto de la orden, la respuesta completa, la credencial ni contenido del
+escritorio. Los nombres de aplicación y URLs que aparecen después provienen del
+catálogo local permitido.
 
 ## Seguridad actual
 
@@ -188,17 +252,24 @@ Los logs locales están excluidos de Git.
 - No se ejecuta texto arbitrario del usuario.
 - No se usa una shell para iniciar aplicaciones.
 - Toda acción declara `RiskLevel` y `requires_confirmation`.
-- v0.2 rechaza cualquier acción distinta de `SAFE`.
+- El ejecutor rechaza cualquier acción distinta de `SAFE`.
 - Las propuestas externas se consideran datos no confiables y nunca llegan
   directamente al ejecutor.
-- El primer incremento de v0.3 usa solo un proveedor falso en tests.
-- No hay acceso a archivos, mouse, teclado, screenshots ni APIs externas.
+- Los tests del adaptador usan un cliente falso y la comprobación con el SDK real
+  reemplazó la operación de red por un mock.
+- Toda solicitud externa de la CLI pasa por una reserva persistente y un límite
+  mensual local antes de llegar al adaptador.
+- Un registro de consumo ausente empieza vacío; uno corrupto o inaccesible bloquea el
+  proveedor en lugar de continuar sin conteo.
+- La CLI no accede a archivos, mouse, teclado ni screenshots. Solo puede usar la
+  Responses API después del opt-in explícito.
 
 ## Estructura principal
 
 ```text
 desktop_agent/
 ├── __main__.py
+├── budgeted_provider.py
 ├── catalog.py
 ├── cli.py
 ├── executor.py
@@ -206,10 +277,12 @@ desktop_agent/
 ├── logging_config.py
 ├── models.py
 ├── parser.py
+├── usage_budget.py
 └── tools/
     ├── applications.py
     └── browser.py
 docs/
+├── IMPLEMENTATION_ROADMAP.md
 ├── PROJECT_DOCUMENTATION.md
 └── V0.3_ARCHITECTURE_PROPOSAL.md
 tests/
@@ -219,8 +292,9 @@ tests/
 
 - **v0.1 — Command Executor:** comandos deterministas y apertura de URLs.
 - **v0.2 — Application Launcher:** apertura segura de Chrome, VS Code y Calculadora.
-- **v0.3 — Natural Language:** [arquitectura e implementación parcial](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
-  primer incremento interno terminado, sin proveedor real ni integración con la CLI.
+- **v0.3 — Natural Language:** [arquitectura y cierre](docs/V0.3_ARCHITECTURE_PROPOSAL.md);
+  contrato, fallback, configuración, adaptador, integración, observabilidad,
+  presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 
 ## Autoría y componentes externos
 
@@ -231,11 +305,15 @@ Construido en el proyecto:
 - catálogo de destinos permitidos;
 - registro y ejecución de herramientas;
 - herramientas de navegador y aplicaciones;
+- adaptador seguro de propuestas para OpenAI;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:
 
-- Python y su biblioteca estándar.
+- Python y su biblioteca estándar;
+- SDK oficial `openai==3.3.1`, licencia Apache-2.0, declarado para v0.3;
+- OpenAI Responses API y `gpt-5.6-luna` como servicio y modelo seleccionados, aún
+  sin llamadas reales.
 
-No se incorporó código de terceros, dependencia nueva ni API de IA en el estado
-actual del proyecto.
+La integración depende de un servicio externo y su uso futuro tendrá costo y políticas
+propias. El modelo y el SDK no son capacidades desarrolladas por el proyecto.
