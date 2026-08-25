@@ -197,7 +197,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-06. |
+| v0.4 | Automatización de navegador | `EN_PROGRESO` | Ejecutar WEB-07. |
 | v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
@@ -557,10 +557,19 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-06 — Tests del adaptador
 
-- Estado: `PENDIENTE`.
-- Unitarios con página falsa.
-- Integración local reproducible cuando sea posible.
-- E2E real opcional y separado por dependencia de red y cambios externos.
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - la matriz separa contrato, adaptador, backend DOM e integración local;
+  - el flujo integrado compone ejecutor, herramienta, fábrica, adaptador y backend con
+    un runtime Playwright falso;
+  - el caso positivo alcanza `VERIFY_PLAYBACK`, usa espera inyectada y cierra contexto,
+    navegador y runtime;
+  - el caso de consentimiento falla de forma estructurada, no espera y también cierra
+    todos los recursos;
+  - reloj y espera se validan antes de iniciar el runtime;
+  - 2 tests nuevos y suite completa de 133 tests aprobados, sin navegador real.
+- E2E omitido: sigue siendo opcional y separado porque requiere red, Chromium real y
+  depende de cambios externos de YouTube.
 
 #### WEB-07 — Prueba manual
 
@@ -954,9 +963,10 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-06 — Tests del adaptador` de
+El primer paso no completado es `WEB-07 — Prueba manual` de
 v0.4.
 
-Cuando el usuario solicite continuar se deberá consolidar la matriz de pruebas del
-adaptador y evaluar una integración local reproducible. Un E2E con red o navegador
-visible seguirá siendo opcional y requerirá autorización separada.
+WEB-07 es un checkpoint `PRUEBA_USUARIO`. Antes de ejecutarlo se debe acordar una
+consulta de prueba y obtener autorización explícita para iniciar Chromium visible y
+usar red. Se deberá medir el tiempo por etapa y declarar que el DOM no confirma la
+salida física de audio.

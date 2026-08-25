@@ -11,9 +11,9 @@ También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 p
 defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
 no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
 La rama de trabajo de v0.4 ya incorporó la base de Playwright, el contrato semántico,
-el flujo vertical de YouTube y la verificación temporal de reproducción. Todo se probó
-con dobles: la CLI todavía no expone el flujo y no se abrió ni controló un navegador
-real.
+el flujo vertical de YouTube y la verificación temporal de reproducción. Las capas se
+probaron de forma unitaria y mediante integración local con dobles: la CLI todavía no
+expone el flujo y no se abrió ni controló un navegador real.
 
 ## Funcionalidades
 
@@ -325,7 +325,7 @@ tests/
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
-  WEB-01 a WEB-05 completados; backend, flujo vertical y verificación temporal
+  WEB-01 a WEB-06 completados; backend, flujo, verificación y composición integral
   validados con dobles, sin control real ni integración con la CLI.
 
 ## Autoría y componentes externos

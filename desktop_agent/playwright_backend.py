@@ -1,6 +1,7 @@
 import logging
 import math
 import re
+import time
 from collections.abc import Callable
 from typing import Protocol, TypeVar
 from urllib.parse import parse_qs, urlsplit, urlunsplit
@@ -15,9 +16,11 @@ from desktop_agent.browser_contract import (
     BrowserDomUnavailableError,
     BrowserLimits,
     BrowserNoResultsError,
+    Clock,
     PageSnapshot,
     PlaybackSnapshot,
     SearchSnapshot,
+    Wait,
 )
 from desktop_agent.catalog import SUPPORTED_SITES
 
@@ -444,6 +447,8 @@ def create_youtube_playwright_adapter(
     policy: BrowserSecurityPolicy = BrowserSecurityPolicy(),
     headless: bool = False,
     runtime_starter: RuntimeStarter = _start_playwright,
+    clock: Clock = time.perf_counter,
+    wait: Wait = time.sleep,
 ) -> SafeBrowserAdapter:
     """Crea una sesión efímera; invocar esta función sí inicia Chromium."""
 
@@ -457,6 +462,8 @@ def create_youtube_playwright_adapter(
         raise TypeError("El modo del navegador no es válido.")
     if not callable(runtime_starter):
         raise TypeError("El iniciador de Playwright no es válido.")
+    if not callable(clock) or not callable(wait):
+        raise TypeError("El reloj y la espera deben ser invocables.")
 
     runtime: PlaywrightRuntimePort | None = None
     browser: BrowserPort | None = None
@@ -483,6 +490,8 @@ def create_youtube_playwright_adapter(
             managed_browser,
             context,
             page,
+            clock=clock,
+            wait=wait,
         )
         return SafeBrowserAdapter(
             dependencies,

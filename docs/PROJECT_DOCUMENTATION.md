@@ -449,7 +449,7 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-05 completado |
+| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-06 completado |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -566,5 +566,15 @@ La herramienta sólo informa éxito después de `VERIFY_PLAYBACK`. Los fallos us
 código seguro `PLAYBACK_NOT_CONFIRMED`, no incluyen URL, título ni contenido, y no
 impiden el cierre. Cuatro pruebas nuevas cubren verificación positiva, volumen no
 observable, estados no demostrados y rechazo final desde la herramienta. La suite
-completa suma 131 pruebas sin esperas reales, red ni ventanas. WEB-06 es el próximo
-paso.
+completa sumaba 131 pruebas sin esperas reales, red ni ventanas al cerrar WEB-05.
+
+WEB-06 agregó una integración local reproducible que compone `ActionExecutor`,
+`YouTubePlaybackTool`, la fábrica, `SafeBrowserAdapter` y `YouTubePlaywrightPage`. El
+límite externo se reemplaza por navegador, contexto, página y runtime falsos. Un caso
+recorre el flujo exitoso hasta `VERIFY_PLAYBACK`; otro simula consentimiento y exige
+fallo seguro, ausencia de espera y cierre completo.
+
+La fábrica permite inyectar reloj y espera y los valida antes de iniciar el runtime.
+Las dos pruebas nuevas elevan la suite a 133 casos. El E2E real fue omitido de forma
+intencional: es opcional, depende de red y del DOM externo, y requerirá autorización
+expresa en el checkpoint WEB-07.

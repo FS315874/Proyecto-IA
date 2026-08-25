@@ -10,6 +10,8 @@ from desktop_agent.browser_contract import (
     BrowserNoResultsError,
     BrowserStepStatus,
 )
+from desktop_agent.executor import ActionExecutionError, ActionExecutor
+from desktop_agent.models import Action, Intent, RiskLevel
 from desktop_agent.playwright_backend import (
     CONSENT_SELECTOR,
     EMPTY_RESULTS_SELECTOR,
@@ -23,6 +25,7 @@ from desktop_agent.playwright_backend import (
     YouTubePlaywrightPage,
     create_youtube_playwright_adapter,
 )
+from desktop_agent.tools.browser_automation import YouTubePlaybackTool
 
 
 class FakeLocator:
@@ -425,6 +428,110 @@ class PlaywrightFactoryTests(unittest.TestCase):
         self.assertEqual(self.browser.close_calls, 1)
         self.assertEqual(self.runtime.stop_calls, 1)
 
+
+class V04BrowserIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.log_output = io.StringIO()
+        self.logger = logging.Logger(self.id(), level=logging.INFO)
+        self.logger.addHandler(logging.StreamHandler(self.log_output))
+        self.page = FakePage()
+        self.context = FakeContext(self.page)
+        self.browser = FakeBrowser(self.context)
+        self.runtime = FakeRuntime(self.browser)
+        self.waits: list[float] = []
+
+    def executor(self) -> ActionExecutor:
+        def adapter_factory():
+            return create_youtube_playwright_adapter(
+                self.logger,
+                headless=True,
+                runtime_starter=lambda: self.runtime,
+                clock=lambda: 1.0,
+                wait=self.waits.append,
+            )
+
+        return ActionExecutor(
+            {
+                "play_youtube": YouTubePlaybackTool(
+                    adapter_factory,
+                    self.logger,
+                    clock=lambda: 1.0,
+                )
+            },
+            self.logger,
+        )
+
+    def action(self, query: str = "lofi hip hop") -> Action:
+        return Action(
+            intent=Intent.BROWSER_NAVIGATION,
+            tool_name="play_youtube",
+            arguments={"query": query},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
+
+    def test_composes_complete_verified_flow_without_real_browser(self) -> None:
+        video = self.page.locators[VIDEO_SELECTOR]
+        video.playback_states = [
+            {
+                "paused": True,
+                "muted": True,
+                "volume": 0.5,
+                "currentTime": 0.0,
+            },
+            {
+                "paused": False,
+                "muted": True,
+                "volume": 0.5,
+                "currentTime": 0.5,
+            },
+            {
+                "paused": False,
+                "muted": False,
+                "volume": 0.5,
+                "currentTime": 1.0,
+            },
+            {
+                "paused": False,
+                "muted": False,
+                "volume": 0.5,
+                "currentTime": 2.0,
+            },
+            {
+                "paused": False,
+                "muted": False,
+                "volume": 0.5,
+                "currentTime": 3.0,
+            },
+        ]
+
+        result = self.executor().execute(self.action())
+
+        self.assertTrue(result.success)
+        self.assertEqual(self.waits, [1.0])
+        self.assertEqual(self.context.close_calls, 1)
+        self.assertEqual(self.browser.close_calls, 1)
+        self.assertEqual(self.runtime.stop_calls, 1)
+        log = self.log_output.getvalue()
+        self.assertIn("operation=VERIFY_PLAYBACK", log)
+        self.assertIn("status=success", log)
+        self.assertNotIn("lofi hip hop", log)
+
+    def test_composed_consent_failure_is_safe_and_closes_resources(self) -> None:
+        consent = self.page.locators[CONSENT_SELECTOR]
+        consent.count_value = 1
+        consent.visible = True
+
+        with self.assertRaises(ActionExecutionError):
+            self.executor().execute(self.action())
+
+        self.assertEqual(self.waits, [])
+        self.assertEqual(self.context.close_calls, 1)
+        self.assertEqual(self.browser.close_calls, 1)
+        self.assertEqual(self.runtime.stop_calls, 1)
+        log = self.log_output.getvalue()
+        self.assertIn("error=consent_required", log)
+        self.assertNotIn("lofi hip hop", log)
 
 if __name__ == "__main__":
     unittest.main()
