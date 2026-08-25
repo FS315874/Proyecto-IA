@@ -10,9 +10,10 @@ adaptador opt-in para OpenAI. El proveedor permanece deshabilitado por defecto.
 También persiste el consumo mensual y aplica un presupuesto local de USD 1,00 por
 defecto antes de cada solicitud externa. La aceptación de la versión fue simulada:
 no se realizaron llamadas reales ni se abrieron aplicaciones durante esa prueba.
-La rama de trabajo de v0.4 ya incorporó la base de Playwright, el contrato semántico
-y una herramienta de navegación segura probada con un backend falso. Todavía no
-existe un backend Playwright concreto ni se abre o controla un navegador real.
+La rama de trabajo de v0.4 ya incorporó la base de Playwright, el contrato semántico,
+el flujo vertical de YouTube y la verificación temporal de reproducción. Todo se probó
+con dobles: la CLI todavía no expone el flujo y no se abrió ni controló un navegador
+real.
 
 ## Funcionalidades
 
@@ -87,15 +88,15 @@ en [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
 - `subprocess` sin `shell=True` para iniciar aplicaciones permitidas.
 - `logging` para el registro persistente.
 - `unittest` para las pruebas automatizadas.
-- Playwright para la futura automatización DOM acotada de v0.4.
+- Playwright para la automatización DOM acotada de v0.4.
 
 El camino determinista continúa usando solo la biblioteca estándar. v0.3 declara
 `openai==3.3.1` para su adaptador. El cliente externo se crea recién al necesitar el
 fallback, por lo que los comandos deterministas no inicializan el SDK.
 WEB-01 de v0.4 declara `playwright==1.62.0` y selecciona únicamente Chromium con
-contextos temporales aislados. WEB-02 y WEB-03 agregan el contrato, la política y el
-adaptador seguro sobre puertos inyectables, pero todavía no existe una implementación
-que lance Playwright.
+contextos temporales aislados. WEB-02 a WEB-04 agregan el contrato, la política, el
+adaptador y un backend Playwright de YouTube. La fábrica que inicia Chromium existe,
+pero no está registrada en la CLI ni fue invocada durante las pruebas.
 
 ## Requisitos
 
@@ -302,6 +303,7 @@ desktop_agent/
 ├── logging_config.py
 ├── models.py
 ├── parser.py
+├── playwright_backend.py
 ├── usage_budget.py
 └── tools/
     ├── applications.py
@@ -323,8 +325,8 @@ tests/
   contrato, fallback, configuración, adaptador, integración, observabilidad,
   presupuesto mensual y aceptación simulada completados, sin llamadas reales.
 - **v0.4 — Browser Automation:** [propuesta técnica](docs/V0.4_ARCHITECTURE_PROPOSAL.md);
-  WEB-01 a WEB-03 completados; dependencia, Chromium, contrato y herramienta segura
-  preparados con dobles, sin backend Playwright ni control real.
+  WEB-01 a WEB-05 completados; backend, flujo vertical y verificación temporal
+  validados con dobles, sin control real ni integración con la CLI.
 
 ## Autoría y componentes externos
 
@@ -336,6 +338,7 @@ Construido en el proyecto:
 - registro y ejecución de herramientas;
 - herramientas de navegador y aplicaciones;
 - contrato, política y adaptador semántico de navegación segura;
+- backend DOM acotado y flujo vertical de YouTube;
 - adaptador seguro de propuestas para OpenAI;
 - CLI, logging, manejo de errores y pruebas.
 

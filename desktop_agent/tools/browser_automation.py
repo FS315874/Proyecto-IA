@@ -2,7 +2,11 @@ import logging
 import time
 from collections.abc import Callable
 
-from desktop_agent.browser_contract import BrowserAdapter, BrowserStepStatus
+from desktop_agent.browser_contract import (
+    BrowserAdapter,
+    BrowserStepStatus,
+    normalize_search_query,
+)
 from desktop_agent.catalog import SUPPORTED_SITES
 from desktop_agent.models import Intent, ToolResult
 
@@ -82,4 +86,83 @@ class BrowserNavigationTool:
         return ToolResult(
             True,
             f"Navegación segura comprobada para {site.name}.",
+        )
+
+
+class YouTubePlaybackTool:
+    """Ejecuta cinco pasos fijos sin interpretar la consulta como instrucciones."""
+
+    def __init__(
+        self,
+        adapter_factory: AdapterFactory,
+        logger: logging.Logger,
+        clock: Clock = time.perf_counter,
+    ) -> None:
+        if not callable(adapter_factory):
+            raise TypeError("La fábrica del adaptador debe ser invocable.")
+        if not isinstance(logger, logging.Logger):
+            raise TypeError("El logger de la herramienta no es válido.")
+        if not callable(clock):
+            raise TypeError("El reloj de la herramienta debe ser invocable.")
+        self._adapter_factory = adapter_factory
+        self._logger = logger
+        self._clock = clock
+
+    def __call__(self, query: str) -> ToolResult:
+        started_at = self._clock()
+        self._logger.info(
+            "Browser tool: intent=%s destination=youtube",
+            Intent.BROWSER_NAVIGATION.value,
+        )
+
+        adapter: BrowserAdapter | None = None
+        flow_success = False
+        close_success = False
+        try:
+            normalized_query = normalize_search_query(query)
+            candidate = self._adapter_factory()
+            if not isinstance(candidate, BrowserAdapter):
+                raise TypeError("invalid adapter")
+            adapter = candidate
+
+            steps = (
+                lambda: adapter.open_site("youtube"),
+                lambda: adapter.search(normalized_query),
+                adapter.select_first_result,
+                adapter.start_playback,
+                adapter.verify_playback,
+            )
+            for step in steps:
+                if step().status is not BrowserStepStatus.SUCCESS:
+                    break
+            else:
+                flow_success = True
+        except Exception:
+            flow_success = False
+        finally:
+            if adapter is not None:
+                try:
+                    close_result = adapter.close()
+                    close_success = (
+                        close_result.status is BrowserStepStatus.SUCCESS
+                    )
+                except Exception:
+                    close_success = False
+
+        success = flow_success and close_success
+        duration_ms = max(0.0, (self._clock() - started_at) * 1000)
+        self._logger.info(
+            "Browser tool: destination=youtube status=%s duration_ms=%.3f",
+            "success" if success else "failure",
+            duration_ms,
+        )
+
+        if not success:
+            return ToolResult(
+                False,
+                "No se pudo verificar la reproducción segura en YouTube.",
+            )
+        return ToolResult(
+            True,
+            "La reproducción segura se verificó en YouTube.",
         )

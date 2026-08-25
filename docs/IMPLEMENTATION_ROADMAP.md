@@ -197,7 +197,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
 | v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
 | v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
-| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-04. |
+| v0.4 | Automatización de navegador | `EN_PROGRESO` | Implementar WEB-06. |
 | v0.5 | Tareas de varios pasos | `PENDIENTE` | Solo después de cerrar v0.4. |
 | v0.6 | Observación mediante screenshots | `PENDIENTE` | Solo después de cerrar v0.5. |
 | v0.7 | Interpretación visual | `PENDIENTE` | Solo después de cerrar v0.6. |
@@ -522,19 +522,38 @@ en YouTube sin depender de mouse o visión.
 
 #### WEB-04 — Flujo vertical de YouTube
 
-- Estado: `PENDIENTE`.
-- Interpretar una consulta ya estructurada.
-- Abrir búsqueda, esperar resultados, seleccionar el primer resultado que cumpla el
-  criterio local e iniciar reproducción.
-- Tratar consentimiento, ausencia de resultados y cambios de DOM como fallos
-  controlados.
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `YouTubePlaybackTool` recibe una consulta estructurada, la normaliza antes de
+    crear el navegador y ejecuta como máximo cuatro operaciones semánticas;
+  - `YouTubePlaywrightPage` mantiene selectores fijos, trata la consulta como datos y
+    espera marcadores conocidos del DOM;
+  - solo admite resultados `/watch` del host permitido y reconstruye una URL canónica
+    con un identificador de video validado;
+  - consentimiento, ausencia de resultados, DOM incompatible y timeout producen
+    errores estructurados y redactados;
+  - la fábrica crea un contexto temporal sin descargas, permisos ni service workers,
+    y limpia contexto, navegador y runtime incluso ante un arranque parcial;
+  - 14 tests nuevos y suite completa de 127 tests aprobados, sin navegador real.
+- Límite: se comprueba el estado al iniciar y quitar el silencio, pero
+  todavía no el avance de `currentTime`; esa verificación pertenece a WEB-05.
 
 #### WEB-05 — Verificación de reproducción
 
-- Estado: `PENDIENTE`.
-- Comprobar título o URL del contenido, estado no pausado y progreso temporal cuando
-  el navegador lo permita.
-- No declarar éxito solo por haber hecho clic.
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `VERIFY_PLAYBACK` observa dos snapshots separados por una espera inyectable de un
+    segundo;
+  - ambas observaciones deben conservar el host permitido y el mismo identificador
+    de video `/watch`;
+  - se exige `paused=false`, `muted=false`, volumen positivo cuando está disponible y
+    un avance mínimo local de 0,1 segundos;
+  - la herramienta sólo informa éxito después de verificar y siempre cierra recursos;
+  - pausa, silencio, volumen cero, cambio de contenido, host externo o progreso
+    insuficiente devuelven `PLAYBACK_NOT_CONFIRMED` sin datos privados;
+  - 4 tests nuevos y suite completa de 131 tests aprobados, sin navegador real.
+- Límite: el DOM no permite comprobar el mezclador de Windows, el dispositivo de
+  salida ni los parlantes; la verificación sólo demuestra estado y avance del video.
 
 #### WEB-06 — Tests del adaptador
 
@@ -935,10 +954,9 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `WEB-04 — Flujo vertical de YouTube` de
+El primer paso no completado es `WEB-06 — Tests del adaptador` de
 v0.4.
 
-Cuando el usuario solicite continuar se deberá implementar el backend Playwright
-acotado y el flujo de búsqueda, primer resultado permitido e inicio de reproducción.
-La implementación normal usará dobles; cualquier prueba con red o navegador visible
-requerirá autorización separada.
+Cuando el usuario solicite continuar se deberá consolidar la matriz de pruebas del
+adaptador y evaluar una integración local reproducible. Un E2E con red o navegador
+visible seguirá siendo opcional y requerirá autorización separada.

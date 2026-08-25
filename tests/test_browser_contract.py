@@ -95,6 +95,9 @@ class FakeAdapter:
     def read_playback(self) -> BrowserStepResult:
         return self._playback_result(BrowserOperation.READ_PLAYBACK)
 
+    def verify_playback(self) -> BrowserStepResult:
+        return self._playback_result(BrowserOperation.VERIFY_PLAYBACK)
+
     def close(self) -> BrowserStepResult:
         return BrowserStepResult(
             BrowserOperation.CLOSE,
@@ -124,6 +127,7 @@ class BrowserLimitsTests(unittest.TestCase):
         self.assertEqual(limits.navigation_timeout_seconds, 10.0)
         self.assertEqual(limits.operation_timeout_seconds, 5.0)
         self.assertEqual(limits.verification_window_seconds, 1.0)
+        self.assertEqual(limits.minimum_playback_progress_seconds, 0.1)
         self.assertEqual(limits.flow_timeout_seconds, 30.0)
         self.assertEqual(limits.max_query_length, MAX_SEARCH_QUERY_LENGTH)
 
@@ -139,11 +143,24 @@ class BrowserLimitsTests(unittest.TestCase):
                 with self.assertRaises(BrowserContractValidationError):
                     BrowserLimits(max_query_length=value)  # type: ignore[arg-type]
 
+        for value in (0, -1, math.nan, math.inf, True, "0.1"):
+            with self.subTest(minimum_progress=value):
+                with self.assertRaises(BrowserContractValidationError):
+                    BrowserLimits(
+                        minimum_playback_progress_seconds=value
+                    )
+
     def test_rejects_step_timeout_larger_than_flow_timeout(self) -> None:
         with self.assertRaises(BrowserContractValidationError):
             BrowserLimits(
                 navigation_timeout_seconds=20,
                 flow_timeout_seconds=10,
+            )
+
+        with self.assertRaises(BrowserContractValidationError):
+            BrowserLimits(
+                verification_window_seconds=0.5,
+                minimum_playback_progress_seconds=0.6,
             )
 
 
@@ -248,13 +265,19 @@ class BrowserStepResultTests(unittest.TestCase):
                 PlaybackSnapshot(self.page, False, False, None, 1),
             ),
             BrowserStepResult(
+                BrowserOperation.VERIFY_PLAYBACK,
+                BrowserStepStatus.SUCCESS,
+                3,
+                PlaybackSnapshot(self.page, False, False, 0.5, 2),
+            ),
+            BrowserStepResult(
                 BrowserOperation.CLOSE,
                 BrowserStepStatus.SUCCESS,
                 4,
             ),
         )
 
-        self.assertEqual(len(valid_results), 4)
+        self.assertEqual(len(valid_results), 5)
 
     def test_accepts_structured_failure_without_payload(self) -> None:
         result = BrowserStepResult(
@@ -356,6 +379,7 @@ class BrowserDependencyContractTests(unittest.TestCase):
             "select_first_result": ["self"],
             "start_playback": ["self"],
             "read_playback": ["self"],
+            "verify_playback": ["self"],
             "close": ["self"],
         }
 
@@ -387,6 +411,10 @@ class BrowserDependencyContractTests(unittest.TestCase):
         self.assertIs(
             adapter.read_playback().operation,
             BrowserOperation.READ_PLAYBACK,
+        )
+        self.assertIs(
+            adapter.verify_playback().operation,
+            BrowserOperation.VERIFY_PLAYBACK,
         )
         self.assertIs(adapter.close().operation, BrowserOperation.CLOSE)
 

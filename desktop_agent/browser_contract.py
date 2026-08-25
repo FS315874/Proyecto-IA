@@ -24,6 +24,7 @@ class BrowserOperation(str, Enum):
     SELECT_FIRST_RESULT = "SELECT_FIRST_RESULT"
     START_PLAYBACK = "START_PLAYBACK"
     READ_PLAYBACK = "READ_PLAYBACK"
+    VERIFY_PLAYBACK = "VERIFY_PLAYBACK"
     CLOSE = "CLOSE"
 
 
@@ -36,12 +37,36 @@ class BrowserErrorCode(str, Enum):
     INVALID_INPUT = "invalid_input"
     INVALID_STATE = "invalid_state"
     TIMEOUT = "timeout"
+    CONSENT_REQUIRED = "consent_required"
+    NO_RESULTS = "no_results"
+    DOM_UNAVAILABLE = "dom_unavailable"
+    PLAYBACK_NOT_CONFIRMED = "playback_not_confirmed"
     BACKEND_FAILURE = "backend_failure"
     CANCELLED = "cancelled"
 
 
 class BrowserContractValidationError(ValueError):
     """Una entrada o resultado no cumple el contrato local del navegador."""
+
+
+class BrowserBackendCondition(RuntimeError):
+    """Condición esperable del backend que el adaptador debe convertir."""
+
+
+class BrowserConsentRequiredError(BrowserBackendCondition):
+    """El sitio requiere una decisión de consentimiento no automatizada."""
+
+
+class BrowserNoResultsError(BrowserBackendCondition):
+    """El sitio no expone resultados que cumplan el criterio local."""
+
+
+class BrowserDomUnavailableError(BrowserBackendCondition):
+    """El DOM observado no cumple las expectativas locales del adaptador."""
+
+
+class BrowserPlaybackNotConfirmedError(BrowserBackendCondition):
+    """La observación no demuestra reproducción audible y progresiva."""
 
 
 @dataclass(frozen=True)
@@ -51,6 +76,7 @@ class BrowserLimits:
     navigation_timeout_seconds: float = 10.0
     operation_timeout_seconds: float = 5.0
     verification_window_seconds: float = 1.0
+    minimum_playback_progress_seconds: float = 0.1
     flow_timeout_seconds: float = 30.0
     max_query_length: int = MAX_SEARCH_QUERY_LENGTH
 
@@ -78,6 +104,18 @@ class BrowserLimits:
         ):
             raise BrowserContractValidationError(
                 "Un tiempo de paso no puede superar el límite del flujo."
+            )
+        if (
+            type(self.minimum_playback_progress_seconds) not in (int, float)
+            or not math.isfinite(
+                float(self.minimum_playback_progress_seconds)
+            )
+            or float(self.minimum_playback_progress_seconds) <= 0
+            or self.minimum_playback_progress_seconds
+            > self.verification_window_seconds
+        ):
+            raise BrowserContractValidationError(
+                "El progreso mínimo debe ser positivo y no superar la ventana."
             )
         if (
             type(self.max_query_length) is not int
@@ -270,6 +308,7 @@ class BrowserStepResult:
             BrowserOperation.SELECT_FIRST_RESULT: PageSnapshot,
             BrowserOperation.START_PLAYBACK: PlaybackSnapshot,
             BrowserOperation.READ_PLAYBACK: PlaybackSnapshot,
+            BrowserOperation.VERIFY_PLAYBACK: PlaybackSnapshot,
             BrowserOperation.CLOSE: None,
         }
         expected_payload = expected_payloads[self.operation]
@@ -354,5 +393,7 @@ class BrowserAdapter(Protocol):
     def start_playback(self) -> BrowserStepResult: ...
 
     def read_playback(self) -> BrowserStepResult: ...
+
+    def verify_playback(self) -> BrowserStepResult: ...
 
     def close(self) -> BrowserStepResult: ...

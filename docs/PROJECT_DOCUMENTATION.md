@@ -404,8 +404,8 @@ validación. Las herramientas del sistema también fueron reemplazadas por doble
 - El presupuesto es una barrera local, no reemplaza la facturación de OpenAI. El
   archivo no coordina varias instancias ejecutándose en paralelo; la v0.3 presupone
   una única instancia activa.
-- Playwright y Chromium están instalados como base de v0.4 y existe un adaptador
-  semántico probado con dobles, pero todavía no hay backend Playwright ni control de
+- Playwright y Chromium están instalados como base de v0.4 y existe un backend DOM
+  acotado probado con dobles, pero todavía no hay integración con la CLI ni control de
   navegador real. Tampoco hay screenshots, visión, mouse, teclado ni memoria.
 - La política de confirmación todavía no tiene interfaz; por eso todo riesgo no
   seguro se bloquea.
@@ -449,7 +449,7 @@ para saltar versiones o decisiones del usuario.
 | v0.1 | Command Executor y URLs | Completada |
 | v0.2 | Application Launcher | Completada |
 | v0.3 | Lenguaje natural estructurado con LLM | Completada; aceptación simulada |
-| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-03 completado |
+| v0.4 | Automatización de navegador con Playwright | En desarrollo; WEB-05 completado |
 | v0.5 | Tareas de varios pasos | Pendiente |
 | v0.6 | Screenshots | Pendiente |
 | v0.7 | Visión | Pendiente |
@@ -474,6 +474,7 @@ Construido en el proyecto:
 - registro y ejecutor;
 - herramientas de navegador y aplicaciones;
 - contrato, política y adaptador semántico de navegación segura;
+- backend DOM acotado y flujo vertical de YouTube;
 - CLI, logging, errores y tests.
 
 Tecnología externa:
@@ -537,4 +538,33 @@ La herramienta es registrable en `ActionExecutor`, recibe solo una clave de cat�
 y siempre intenta cerrar contexto y navegador. Las 16 pruebas nuevas usan un backend
 falso y cubren allowlist, estado, errores, redacción, cierre y registro; la suite
 completa suma 113 pruebas. La CLI no registra todavía la herramienta y el proyecto no
-inició Playwright ni realizó navegación real. El próximo paso es WEB-04.
+inició Playwright ni realizó navegación real.
+
+WEB-04 agregó `desktop_agent/playwright_backend.py` y `YouTubePlaybackTool`. El
+backend conserva localmente los selectores, crea bajo demanda un Chromium administrado
+y un contexto temporal sin descargas, permisos ni service workers. La consulta se
+normaliza antes de cualquier inicio y se introduce mediante `fill`; nunca se usa como
+URL, selector o script.
+
+El primer resultado debe pertenecer a `/watch` y contener un identificador de video
+válido. El backend reconstruye la URL canónica y descarta parámetros adicionales. El
+flujo fijo abre YouTube, busca, selecciona, inicia y quita el silencio, deteniéndose
+ante el primer fallo y cerrando contexto, navegador y runtime.
+
+Las 14 pruebas nuevas cubren el camino exitoso, consulta inválida, consentimiento,
+cero resultados, cambios de DOM, timeout, enlace externo, reproducción pausada,
+aislamiento y limpieza parcial. La suite completa suma 127 pruebas y no inició un
+navegador real.
+
+WEB-05 extendió `BrowserAdapter` con `verify_playback`. El flujo toma dos observaciones
+separadas por la ventana local inyectable y exige que ambas pertenezcan al mismo video
+de YouTube, no estén pausadas ni silenciadas y tengan volumen positivo cuando el DOM
+lo expone. `currentTime` debe avanzar al menos 0,1 segundos durante la ventana de un
+segundo; ambos valores están validados y no pueden ser definidos por el modelo.
+
+La herramienta sólo informa éxito después de `VERIFY_PLAYBACK`. Los fallos usan el
+código seguro `PLAYBACK_NOT_CONFIRMED`, no incluyen URL, título ni contenido, y no
+impiden el cierre. Cuatro pruebas nuevas cubren verificación positiva, volumen no
+observable, estados no demostrados y rechazo final desde la herramienta. La suite
+completa suma 131 pruebas sin esperas reales, red ni ventanas. WEB-06 es el próximo
+paso.
