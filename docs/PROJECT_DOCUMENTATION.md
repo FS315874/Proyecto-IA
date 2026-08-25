@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 220 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 235 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -460,7 +460,7 @@ para saltar versiones o decisiones del usuario.
 | v0.6 | Screenshots | Completada |
 | v0.7 | Visión | Completada |
 | v0.8 | Mouse y teclado con límites | Completada |
-| v0.9 | Bucle observe-plan-act-evaluate | Pendiente |
+| v0.9 | Bucle observe-plan-act-evaluate | Completada |
 | v0.10 | Recuperación y estrategias alternativas | Pendiente |
 | v0.11 | Confirmaciones y permisos completos | Pendiente |
 | v0.12 | Interfaz de escritorio | Pendiente |
@@ -793,3 +793,32 @@ título, coordenadas ni detalle del backend. Catorce pruebas con dobles cubren l
 política. La demo autorizada abrió una ventana Win32 propia con datos ficticios,
 escribió y verificó `Cliente ficticio 123`, pulsó un botón accesible, comprobó su
 resultado y cerró con el hotkey armado. La suite pasa a 220 pruebas.
+
+## 25. Estado de implementación de v0.9
+
+v0.9 agrega `BoundedAgentLoop`, una máquina de estados que orquesta cuatro puertos
+inyectables: observar, decidir, actuar y evaluar. El núcleo no contiene una aplicación,
+un modelo o una herramienta concreta y no permite que una decisión amplíe la allowlist
+de `LoopTask`.
+
+Los límites predeterminados son treinta segundos, cinco observaciones, tres acciones,
+un reintento por causa y dos ambigüedades. Tiempo y cancelación se revisan entre fases.
+Solo `TRANSIENT_UI` y `TRANSIENT_TIMEOUT` pueden producir `RETRY`; causas permanentes
+no pueden declararse transitorias por contrato.
+
+Cada observación emite un `state_token`. Una decisión debe citar exactamente ese
+estado y un fingerprint semántico. El par estado/fingerprint se consume antes de la
+acción: repetirlo sin evidencia nueva termina como ambigüedad. La evaluación declara
+si cambió el estado y el token resultante; cualquier incoherencia o diferencia con la
+siguiente observación falla de forma segura.
+
+`LoopExecution` conserva historial de estados y evidencia por iteración: observación,
+decisión, herramienta, fingerprint, resultado, evaluación, causa, cambio y duración.
+No guarda el objetivo en lenguaje natural, argumentos de herramientas ni valores del
+formulario. Los rechazos intermedios también quedan representados.
+
+Quince pruebas cubren éxito, límites, reintentos, repetición, ambigüedad, cancelación,
+timeout, allowlist, evidencia y errores redactados. La demo de QA usa una aplicación en
+memoria con datos ficticios: observa vacío, llena, verifica progreso, observa lleno,
+envía y verifica éxito. Termina con dos observaciones y dos acciones, sin red, UI ni
+efectos externos. La suite suma 235 pruebas.

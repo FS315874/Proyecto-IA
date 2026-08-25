@@ -4,10 +4,10 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.8 — Input de escritorio con límites**. Conserva
-la interpretación visual de v0.7 y agrega clic y escritura dirigidos a una ventana
-exacta, con confirmación de un solo uso, foco comprobado, presupuesto, emergencia y
-bloqueos de contexto. Esta capacidad todavía no se expone en la CLI o GUI cotidiana.
+La versión ejecutable actual es **v0.9 — Bucle agente acotado**. Conserva el input
+confirmado de v0.8 y agrega una máquina finita que separa observación, decisión, acción
+y evaluación. Limita tiempo, observaciones, acciones, reintentos y ambigüedad; nunca
+inventa herramientas ni repite una acción sobre el mismo estado.
 
 ## Funcionalidades
 
@@ -190,7 +190,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.8.0 — escribí 'salir' para terminar.
+Desktop Agent v0.9.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -295,7 +295,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 220 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 235 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -392,6 +392,7 @@ catálogo local permitido.
 ```text
 desktop_agent/
 ├── __main__.py
+├── agent_loop.py
 ├── budgeted_provider.py
 ├── budgeted_vision_provider.py
 ├── browser_adapter.py
@@ -428,7 +429,8 @@ docs/
 ├── V0.5_ARCHITECTURE.md
 ├── V0.6_ARCHITECTURE.md
 ├── V0.7_ARCHITECTURE.md
-└── V0.8_ARCHITECTURE.md
+├── V0.8_ARCHITECTURE.md
+└── V0.9_ARCHITECTURE.md
 scripts/
 └── web07_manual_check.py
 tests/
@@ -454,6 +456,8 @@ tests/
   estricto, confianza, fusión accesible local y contenido visual tratado como datos.
 - **v0.8 — Input de escritorio con límites:** completada; clic y texto confirmados,
   ventana/foco exactos, fallback ligado a observación, bloqueos y emergencia.
+- **v0.9 — Bucle agente acotado:** completada; máquina de estados, evidencia,
+  cancelación, límites, reintentos transitorios y abandono ante ambigüedad.
 
 ## Autoría y componentes externos
 
@@ -471,6 +475,7 @@ Construido en el proyecto:
 - contrato y backend nativo para observaciones visuales locales minimizadas;
 - validación, evaluación y adaptador opt-in para interpretación visual;
 - controlador y backend Win32 para input confirmado y acotado;
+- orquestador observe-decide-act-evaluate finito y auditable;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

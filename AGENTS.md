@@ -37,6 +37,7 @@ python -m desktop_agent --plan "detener youtube luego detener youtube"
 python -m scripts.obs08_manual_check
 python -m scripts.vis08_simulated_check
 python -m scripts.input08_manual_check
+python -m scripts.loop08_qa_check
 python -m unittest discover -s tests -v
 ```
 

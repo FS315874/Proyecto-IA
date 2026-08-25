@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.8 completada y v0.9 habilitada.
+> Estado comprobado del producto: v0.9 completada y v0.10 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -203,8 +203,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.6 | Observación mediante screenshots | `COMPLETADO` | Ninguno. |
 | v0.7 | Interpretación visual | `COMPLETADO` | Ninguno. |
 | v0.8 | Mouse y teclado con límites | `COMPLETADO` | Ninguno. |
-| v0.9 | Bucle observar-planificar-actuar-evaluar | `PENDIENTE` | Ejecutar LOOP-01. |
-| v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Solo después de cerrar v0.9. |
+| v0.9 | Bucle observar-planificar-actuar-evaluar | `COMPLETADO` | Ninguno. |
+| v0.10 | Recuperación y memoria procedural | `PENDIENTE` | Ejecutar RECIPE-01. |
 | v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Solo después de cerrar v0.10. |
 | v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Solo después de cerrar v0.11. |
 | v0.13 | Entrada por voz | `PENDIENTE` | Solo después de cerrar v0.12. |
@@ -821,14 +821,19 @@ infinito o irrestricto.
 
 ### Secuencia
 
-1. definir máquina de estados del ciclo;
-2. separar observación, decisión, acción y evaluación;
-3. conservar evidencia estructurada de cada iteración;
-4. reintentar solo errores clasificados como transitorios;
-5. bloquear repetición de la misma acción sin estado nuevo;
-6. terminar ante ambigüedad persistente;
-7. probar límites y cancelación;
-8. demostrar un flujo de QA controlado y cerrar la versión.
+1. `LOOP-01` — `COMPLETADO`: máquina explícita con estados y transiciones finitas.
+2. `LOOP-02` — `COMPLETADO`: puertos independientes para observar, decidir, actuar
+   y evaluar; ninguna fase ejecuta texto de otra.
+3. `LOOP-03` — `COMPLETADO`: evidencia por iteración con IDs, estado, herramienta,
+   fingerprint, resultado, causa, cambio y duración, sin argumentos privados.
+4. `LOOP-04` — `COMPLETADO`: `RETRY` solo admite causas transitorias y tiene máximo
+   por causa; los fallos permanentes se abandonan.
+5. `LOOP-05` — `COMPLETADO`: par estado/fingerprint ejecutado no puede repetirse.
+6. `LOOP-06` — `COMPLETADO`: dos ambigüedades consecutivas terminan el ciclo.
+7. `LOOP-07` — `COMPLETADO`: quince pruebas cubren tiempo, observaciones, acciones,
+   reintentos, allowlist, estado, evidencia, cancelación y errores.
+8. `LOOP-08` — `COMPLETADO`: QA ficticio en memoria completa alta en dos acciones y
+   dos observaciones, con éxito evaluado y cero efectos externos.
 
 ## 14. v0.10 — Recuperación y memoria procedural
 
@@ -1095,7 +1100,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `LOOP-01 — Contrato del bucle` de v0.9. El usuario
+El primer paso no completado es `RECIPE-01 — Contrato de receta` de v0.10. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o
