@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 256 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 274 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -462,7 +462,7 @@ para saltar versiones o decisiones del usuario.
 | v0.8 | Mouse y teclado con límites | Completada |
 | v0.9 | Bucle observe-plan-act-evaluate | Completada |
 | v0.10 | Recuperación y estrategias alternativas | Completada |
-| v0.11 | Confirmaciones y permisos completos | Pendiente |
+| v0.11 | Confirmaciones y permisos completos | Completada |
 | v0.12 | Interfaz de escritorio | Pendiente |
 | v0.13 | Entrada por voz | Pendiente |
 | v0.14 | Control remoto propio | Pendiente |
@@ -849,3 +849,29 @@ allowlist. Los cambios de selector o contrato invalidan la receta y detienen el 
 Veintiuna pruebas cubren contratos, persistencia, aprobación, privacidad, recuperación,
 allowlist e invalidación. El QA ficticio fuerza una recuperación exitosa y comprueba
 que un valor privado de runtime no aparece en disco. La suite suma 256 pruebas.
+
+## 27. Estado de implementación de v0.11
+
+v0.11 agrega una taxonomía por efecto. Las reglas locales de capacidad fijan efecto,
+intents, herramientas, argumentos exactos y campo de destino. La política deriva de
+allí `ALLOW`, `CONFIRM` o `BLOCK` y el nivel de riesgo; una acción no puede rebajarlos
+mediante metadata generada externamente aunque comparta herramienta con otra capacidad.
+
+Las acciones de escritura no sensible, modificación local, borrado recuperable, envío
+externo e instalación requieren confirmación según su riesgo. Manejo de credenciales,
+cambios de seguridad, código arbitrario, borrado irreversible y transacciones
+financieras no producen challenge y permanecen bloqueados. También conservan metadata
+`DANGEROUS` para que el ejecutor directo no pueda tratarlos como seguros.
+
+`PermissionBroker` emite una solicitud inmediata con destino visible y fingerprint
+SHA-256 de acción, argumentos, destino, capacidad y efecto. La decisión cita request,
+challenge, fingerprint, canal y vencimiento. Una aprobación crea un token opaco que
+`ActionExecutor` vuelve a validar y consume atómicamente antes de llamar a la
+herramienta. No existen permisos globales ni reutilizables.
+
+Rechazo, timeout, cancelación, canal no permitido, cambio de argumentos o destino,
+challenge incorrecto y repetición terminan sin efecto. Dos pruebas concurrentes
+demuestran que una carrera de aprobación emite un solo token y una carrera de ejecución
+alcanza la herramienta una sola vez. Los logs registran IDs, capacidad, efecto,
+herramienta, estado, canal y duración, sin destino, valores, challenge ni excepción
+privada. Dieciocho pruebas y un QA ficticio elevan la suite a 274 casos.

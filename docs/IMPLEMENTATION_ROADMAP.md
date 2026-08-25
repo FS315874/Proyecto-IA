@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.10 completada y v0.11 habilitada.
+> Estado comprobado del producto: v0.11 completada y v0.12 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -205,8 +205,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.8 | Mouse y teclado con límites | `COMPLETADO` | Ninguno. |
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `COMPLETADO` | Ninguno. |
 | v0.10 | Recuperación y memoria procedural | `COMPLETADO` | Ninguno. |
-| v0.11 | Confirmaciones y permisos completos | `PENDIENTE` | Ejecutar POLICY-01. |
-| v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Solo después de cerrar v0.11. |
+| v0.11 | Confirmaciones y permisos completos | `COMPLETADO` | Ninguno. |
+| v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Ejecutar UI-01. |
 | v0.13 | Entrada por voz | `PENDIENTE` | Solo después de cerrar v0.12. |
 | v0.14 | Control remoto propio | `PENDIENTE` | Solo después de cerrar v0.13. |
 
@@ -889,14 +889,22 @@ coherente entre interfaz local y futura interfaz remota.
 
 ### Secuencia
 
-1. definir taxonomía de riesgo por efecto, no por nombre del comando;
-2. definir acciones siempre bloqueadas;
-3. definir acciones que requieren confirmación inmediata;
-4. asociar confirmación a acción, argumentos, destino y vencimiento;
-5. impedir que una confirmación autorice acciones posteriores diferentes;
-6. implementar rechazo, timeout y cancelación;
-7. probar carrera, repetición y confirmación obsoleta;
-8. auditar logs y cerrar la versión.
+1. `POLICY-01` — `COMPLETADO`: taxonomía local por efecto con disposiciones `ALLOW`,
+   `CONFIRM` y `BLOCK`, independiente del nombre de herramienta.
+2. `POLICY-02` — `COMPLETADO`: credenciales, seguridad, código arbitrario, borrado
+   irreversible y transacciones financieras están siempre bloqueados.
+3. `POLICY-03` — `COMPLETADO`: reglas de capacidad fijan intents, herramientas,
+   argumentos, destino, riesgo y necesidad de confirmación.
+4. `POLICY-04` — `COMPLETADO`: solicitud inmediata ligada por SHA-256 a acción,
+   argumentos, destino, capacidad y vencimiento; el UI puede mostrar el destino.
+5. `POLICY-05` — `COMPLETADO`: aprobación emite un token opaco de un uso que el
+   `ActionExecutor` valida y consume atómicamente antes del efecto.
+6. `POLICY-06` — `COMPLETADO`: rechazo, timeout, cancelación, canal no habilitado,
+   challenge incorrecto y acción obsoleta fallan de forma estructurada.
+7. `POLICY-07` — `COMPLETADO`: pruebas con threads demuestran una sola aprobación y
+   un solo efecto ante carreras; repetición y confirmación obsoleta se rechazan.
+8. `POLICY-08` — `COMPLETADO`: logs omiten destino, argumentos, challenge y errores
+   privados; dieciocho pruebas nuevas y QA ficticio llevan la suite a 274 casos.
 
 Hasta completar esta versión, las capacidades anteriores deben permanecer en
 escenarios seguros, aislados o de prueba.
@@ -1119,7 +1127,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `POLICY-01 — Taxonomía por efecto` de v0.11. El usuario
+El primer paso no completado es `UI-01 — Contrato del servicio local` de v0.12. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o

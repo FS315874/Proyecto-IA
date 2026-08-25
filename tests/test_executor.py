@@ -41,7 +41,7 @@ class ActionExecutorTests(unittest.TestCase):
             requires_confirmation=True,
         )
 
-        with self.assertRaisesRegex(ActionExecutionError, "no es segura"):
+        with self.assertRaisesRegex(ActionExecutionError, "autorización"):
             executor.execute(action)
 
     def test_rejects_non_safe_action_even_with_inconsistent_metadata(self) -> None:
@@ -54,8 +54,14 @@ class ActionExecutorTests(unittest.TestCase):
             requires_confirmation=False,
         )
 
-        with self.assertRaisesRegex(ActionExecutionError, "no es segura"):
+        with self.assertRaisesRegex(ActionExecutionError, "inconsistente"):
             executor.execute(action)
+
+    def test_rejects_invalid_tool_result(self) -> None:
+        executor = ActionExecutor({"open_url": lambda **_: None}, self.logger)
+
+        with self.assertRaisesRegex(ActionExecutionError, "resultado inválido"):
+            executor.execute(self._action())
 
     @staticmethod
     def _action() -> Action:

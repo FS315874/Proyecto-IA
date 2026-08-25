@@ -4,11 +4,12 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.10 — Memoria procedural segura**. Conserva el
-bucle acotado de v0.9 y agrega recetas semánticas versionadas que solo se reutilizan
-después de éxito observable y aprobación explícita. Valida huella de aplicación,
-precondiciones, parámetros y allowlist antes de cualquier efecto; una incompatibilidad
-de aplicación, selector o contrato vuelve obsoleta la receta.
+La versión ejecutable actual es **v0.11 — Política de permisos completa**. Conserva
+las recetas seguras de v0.10 y agrega riesgo clasificado por efecto, capacidades
+locales y confirmaciones inmediatas ligadas a acción, argumentos, destino y
+vencimiento. Los permisos son de un uso; rechazo, cancelación, repetición, carrera o
+estado obsoleto fallan antes del efecto. Credenciales, seguridad, código arbitrario,
+borrado irreversible y transacciones financieras permanecen siempre bloqueados.
 
 ## Funcionalidades
 
@@ -124,8 +125,8 @@ mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas r
 v0.8 usa controles Win32 y mensajes dirigidos antes que mouse global. No agrega una
 dependencia y mantiene `Ctrl+Alt+Esc` como atajo de emergencia mientras el backend de
 input está activo.
-v0.9 y v0.10 usan solamente la biblioteca estándar. El bucle, las recetas, el almacén
-JSON local y sus puertos de ejecución/verificación no agregan servicios ni paquetes.
+v0.9 a v0.11 usan solamente la biblioteca estándar. El bucle, las recetas, la
+política de permisos y sus puertos no agregan servicios ni paquetes.
 
 ## Requisitos
 
@@ -193,7 +194,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.10.0 — escribí 'salir' para terminar.
+Desktop Agent v0.11.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -298,7 +299,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 256 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 274 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -378,7 +379,8 @@ catálogo local permitido.
 - No se ejecuta texto arbitrario del usuario.
 - No se usa una shell para iniciar aplicaciones.
 - Toda acción declara `RiskLevel` y `requires_confirmation`.
-- El ejecutor rechaza cualquier acción distinta de `SAFE`.
+- El ejecutor exige una autorización exacta y de un uso para `CAUTION` y `DANGEROUS`.
+- Los efectos siempre bloqueados no pueden producir una solicitud de confirmación.
 - Las propuestas externas se consideran datos no confiables y nunca llegan
   directamente al ejecutor.
 - Los tests del adaptador usan un cliente falso y la comprobación con el SDK real
@@ -413,6 +415,7 @@ desktop_agent/
 ├── parser.py
 ├── plans.py
 ├── playwright_backend.py
+├── permissions.py
 ├── recipes.py
 ├── usage_budget.py
 ├── vision.py
@@ -435,8 +438,10 @@ docs/
 ├── V0.7_ARCHITECTURE.md
 ├── V0.8_ARCHITECTURE.md
 ├── V0.9_ARCHITECTURE.md
-└── V0.10_ARCHITECTURE.md
+├── V0.10_ARCHITECTURE.md
+└── V0.11_ARCHITECTURE.md
 scripts/
+├── policy11_qa_check.py
 ├── recipe10_qa_check.py
 └── web07_manual_check.py
 tests/
@@ -466,6 +471,8 @@ tests/
   cancelación, límites, reintentos transitorios y abandono ante ambigüedad.
 - **v0.10 — Memoria procedural segura:** completada; recetas aprobadas, huella de
   aplicación, precondiciones, verificaciones, recuperación declarada e invalidación.
+- **v0.11 — Política de permisos completa:** completada; riesgo por efecto,
+  confirmaciones exactas de un uso y efectos que permanecen siempre bloqueados.
 
 ## Autoría y componentes externos
 
@@ -485,6 +492,7 @@ Construido en el proyecto:
 - controlador y backend Win32 para input confirmado y acotado;
 - orquestador observe-decide-act-evaluate finito y auditable;
 - catálogo, persistencia y runner de recetas semánticas aprobadas;
+- política por capacidades y broker de confirmaciones locales o remotas;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

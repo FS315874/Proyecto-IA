@@ -1,9 +1,17 @@
 import logging
 from collections.abc import Callable, Mapping
+from typing import Protocol, runtime_checkable
 
 from desktop_agent.models import Action, RiskLevel, ToolResult
 
 Tool = Callable[..., ToolResult]
+
+
+@runtime_checkable
+class AuthorizationValidator(Protocol):
+    def validate(self, action: Action, authorization: object) -> None: ...
+
+    def consume(self, action: Action, authorization: object) -> None: ...
 
 
 class ActionExecutionError(RuntimeError):
@@ -13,20 +21,51 @@ class ActionExecutionError(RuntimeError):
 class ActionExecutor:
     """Ejecuta únicamente herramientas registradas de forma explícita."""
 
-    def __init__(self, tools: Mapping[str, Tool], logger: logging.Logger) -> None:
+    def __init__(
+        self,
+        tools: Mapping[str, Tool],
+        logger: logging.Logger,
+        authorization_validator: AuthorizationValidator | None = None,
+    ) -> None:
+        if authorization_validator is not None and not isinstance(
+            authorization_validator,
+            AuthorizationValidator,
+        ):
+            raise TypeError("El validador de autorizaciones no cumple su contrato.")
         self._tools = dict(tools)
         self._logger = logger
+        self._authorization_validator = authorization_validator
 
-    def validate(self, action: Action) -> None:
+    def validate(
+        self,
+        action: Action,
+        authorization: object | None = None,
+    ) -> None:
         """Comprueba una acción sin producir ningún efecto."""
 
         if not isinstance(action, Action):
             raise ActionExecutionError("La acción no cumple el contrato local.")
-        if action.risk_level is not RiskLevel.SAFE or action.requires_confirmation:
+        if action.risk_level is RiskLevel.SAFE:
+            if action.requires_confirmation or authorization is not None:
+                raise ActionExecutionError(
+                    "La metadata de seguridad de la acción es inconsistente."
+                )
+        elif (
+            action.risk_level not in {RiskLevel.CAUTION, RiskLevel.DANGEROUS}
+            or not action.requires_confirmation
+        ):
             raise ActionExecutionError(
-                "La acción no es segura sin confirmación. "
-                "El flujo de confirmación aún no está implementado."
+                "La metadata de seguridad de la acción es inconsistente."
             )
+        elif authorization is None or self._authorization_validator is None:
+            raise ActionExecutionError("La acción no tiene una autorización válida.")
+        else:
+            try:
+                self._authorization_validator.validate(action, authorization)
+            except Exception as error:
+                raise ActionExecutionError(
+                    "La acción no tiene una autorización válida."
+                ) from error
 
         tool = self._tools.get(action.tool_name)
         if tool is None:
@@ -34,18 +73,44 @@ class ActionExecutor:
                 f"La herramienta '{action.tool_name}' no está registrada."
             )
 
-    def execute(self, action: Action) -> ToolResult:
-        self.validate(action)
+    def execute(
+        self,
+        action: Action,
+        authorization: object | None = None,
+    ) -> ToolResult:
+        self.validate(action, authorization)
         tool = self._tools[action.tool_name]
+
+        if action.risk_level is not RiskLevel.SAFE:
+            assert authorization is not None
+            assert self._authorization_validator is not None
+            try:
+                self._authorization_validator.consume(action, authorization)
+            except Exception as error:
+                raise ActionExecutionError(
+                    "La autorización ya no es válida."
+                ) from error
 
         self._logger.info("Tool: %s", action.tool_name)
         try:
             result = tool(**action.arguments)
         except Exception as error:
-            self._logger.exception("Status: ERROR")
+            self._logger.error(
+                "Status: ERROR tool=%s error=tool_failure",
+                action.tool_name,
+            )
             raise ActionExecutionError(
-                f"No se pudo ejecutar '{action.tool_name}': {error}"
+                f"No se pudo ejecutar '{action.tool_name}'."
             ) from error
+
+        if not isinstance(result, ToolResult):
+            self._logger.error(
+                "Status: ERROR tool=%s error=invalid_tool_result",
+                action.tool_name,
+            )
+            raise ActionExecutionError(
+                f"La herramienta '{action.tool_name}' devolvió un resultado inválido."
+            )
 
         status = "SUCCESS" if result.success else "ERROR"
         self._logger.info("Status: %s", status)
