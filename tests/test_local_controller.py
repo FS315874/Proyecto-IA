@@ -19,6 +19,7 @@ from desktop_agent.interpretation import (
 )
 from desktop_agent.local_controller import (
     AlreadyRunningError,
+    ControllerCancelStatus,
     ControllerState,
     ControllerUpdate,
     ControllerUpdateKind,
@@ -238,6 +239,44 @@ class LocalAgentControllerTests(unittest.TestCase):
             )
         )
         self.assertEqual(playback.stop_calls, 1)
+
+    def test_cancels_one_pending_command_but_not_an_active_phase(self) -> None:
+        processor = BlockingProcessor()
+        controller = self.build_controller(processor)
+        active = controller.submit("activa")
+        pending = controller.submit("pendiente")
+        self.assertTrue(processor.started.wait(1.0))
+
+        self.assertEqual(
+            controller.cancel(active),
+            ControllerCancelStatus.ACTIVE_NOT_INTERRUPTIBLE,
+        )
+        self.assertEqual(
+            controller.cancel(pending),
+            ControllerCancelStatus.CANCELLED,
+        )
+        processor.release.set()
+        updates = self.wait_for_updates(
+            controller,
+            lambda values: any(
+                item.kind is ControllerUpdateKind.RESULT
+                and item.request_id == active
+                for item in values
+            ),
+        )
+
+        self.assertEqual(processor.commands, ["activa"])
+        self.assertTrue(
+            any(
+                item.kind is ControllerUpdateKind.CANCELLED
+                and item.request_id == pending
+                for item in updates
+            )
+        )
+        self.assertEqual(
+            controller.cancel("local-missing"),
+            ControllerCancelStatus.NOT_FOUND,
+        )
 
     def test_close_cancels_pending_stops_playback_and_is_idempotent(self) -> None:
         playback = FakePlaybackController(active=True)

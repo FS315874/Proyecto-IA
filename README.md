@@ -4,12 +4,11 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.11 — Política de permisos completa**. Conserva
-las recetas seguras de v0.10 y agrega riesgo clasificado por efecto, capacidades
-locales y confirmaciones inmediatas ligadas a acción, argumentos, destino y
-vencimiento. Los permisos son de un uso; rechazo, cancelación, repetición, carrera o
-estado obsoleto fallan antes del efecto. Credenciales, seguridad, código arbitrario,
-borrado irreversible y transacciones financieras permanecen siempre bloqueados.
+La versión ejecutable actual es **v0.12 — Aplicación y servicio local**. La consola
+Tkinter usa una fachada de servicio dentro del proceso, sin abrir puertos. Muestra
+historial y estados por tarea, herramienta activa, resultado, evidencia, uso y
+latencia; incorpora confirmaciones exactas, cancelación, stop, emergencia y suspensión
+segura al bloquearse o volverse incierta la sesión de Windows.
 
 ## Funcionalidades
 
@@ -125,8 +124,8 @@ mensual existente. Las pruebas y la evaluación de cierre no hicieron llamadas r
 v0.8 usa controles Win32 y mensajes dirigidos antes que mouse global. No agrega una
 dependencia y mantiene `Ctrl+Alt+Esc` como atajo de emergencia mientras el backend de
 input está activo.
-v0.9 a v0.11 usan solamente la biblioteca estándar. El bucle, las recetas, la
-política de permisos y sus puertos no agregan servicios ni paquetes.
+v0.9 a v0.12 usan solamente la biblioteca estándar. El bucle, las recetas, la
+política, el servicio local y Tkinter no agregan servicios externos ni paquetes.
 
 ## Requisitos
 
@@ -179,11 +178,17 @@ python -m desktop_agent --gui
 ```
 
 La ventana mantiene un único controlador durante toda la sesión. Incluye entrada de
-órdenes, estado activo, resultado, latencia total/cola/ejecución, tokens, costo,
-presupuesto mensual, detención normal, detención de emergencia y cierre seguro. Una
-segunda instancia se rechaza mediante un lock por usuario. La emergencia cancela
-órdenes pendientes y detiene la reproducción al alcanzar el siguiente límite seguro;
-no interrumpe a mitad de una llamada bloqueante de Playwright.
+órdenes, historial acotado en memoria, estado por tarea, herramienta activa, resultado
+y evidencia, latencia total/cola/ejecución, tokens, costo, presupuesto mensual,
+confirmaciones de un uso, cancelación, detención normal, emergencia y cierre seguro.
+Una segunda instancia se rechaza mediante un lock por usuario. La emergencia cancela
+órdenes y confirmaciones pendientes y detiene la reproducción al alcanzar el siguiente
+límite seguro; no interrumpe a mitad de una llamada bloqueante de Playwright.
+
+El servicio arranca manualmente junto con `--gui`; no se instala en el inicio de
+Windows, no escucha sockets y no persiste el historial. Si la sesión interactiva se
+bloquea o no puede comprobarse, suspende entradas y solicita una detención de
+emergencia. El desbloqueo no reanuda automáticamente: requiere el botón `Reanudar`.
 
 Iniciá el modo interactivo desde la raíz del proyecto:
 
@@ -194,7 +199,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.11.0 — escribí 'salir' para terminar.
+Desktop Agent v0.12.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -299,7 +304,7 @@ python -m unittest discover -s tests -v
 
 La suite automatizada usa navegadores, buscadores de ejecutables e iniciadores de
 procesos falsos. Por eso puede verificar las herramientas sin abrir ventanas reales.
-La suite actual contiene 274 pruebas locales. Además se comprobó con Tcl/Tk real que
+La suite actual contiene 290 pruebas locales. Además se comprobó con Tcl/Tk real que
 la ventana puede construirse, actualizar su layout y cerrar su worker sin iniciar
 Chromium ni ejecutar una orden.
 
@@ -407,6 +412,8 @@ desktop_agent/
 ├── executor.py
 ├── input_control.py
 ├── interpretation.py
+├── local_controller.py
+├── local_service.py
 ├── logging_config.py
 ├── models.py
 ├── observation.py
@@ -417,12 +424,14 @@ desktop_agent/
 ├── playwright_backend.py
 ├── permissions.py
 ├── recipes.py
+├── tk_app.py
 ├── usage_budget.py
 ├── vision.py
 ├── vision_config.py
 ├── vision_runtime.py
 ├── windows_capture.py
 ├── windows_input.py
+├── windows_session.py
 └── tools/
     ├── applications.py
     ├── browser.py
@@ -439,10 +448,12 @@ docs/
 ├── V0.8_ARCHITECTURE.md
 ├── V0.9_ARCHITECTURE.md
 ├── V0.10_ARCHITECTURE.md
-└── V0.11_ARCHITECTURE.md
+├── V0.11_ARCHITECTURE.md
+└── V0.12_ARCHITECTURE.md
 scripts/
 ├── policy11_qa_check.py
 ├── recipe10_qa_check.py
+├── ui12_smoke_check.py
 └── web07_manual_check.py
 tests/
 ```
@@ -473,6 +484,8 @@ tests/
   aplicación, precondiciones, verificaciones, recuperación declarada e invalidación.
 - **v0.11 — Política de permisos completa:** completada; riesgo por efecto,
   confirmaciones exactas de un uso y efectos que permanecen siempre bloqueados.
+- **v0.12 — Aplicación y servicio local:** completada; historial y evidencia visibles,
+  confirmaciones, cancelación y suspensión segura de sesión, sin abrir puertos.
 
 ## Autoría y componentes externos
 
@@ -493,6 +506,7 @@ Construido en el proyecto:
 - orquestador observe-decide-act-evaluate finito y auditable;
 - catálogo, persistencia y runner de recetas semánticas aprobadas;
 - política por capacidades y broker de confirmaciones locales o remotas;
+- fachada de servicio local, historial de tareas y monitor de sesión Windows;
 - CLI, logging, manejo de errores y pruebas.
 
 Tecnología externa:

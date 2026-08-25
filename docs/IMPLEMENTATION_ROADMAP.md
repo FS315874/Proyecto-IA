@@ -1,7 +1,7 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.11 completada y v0.12 habilitada.
+> Estado comprobado del producto: v0.12 completada y v0.13 habilitada.
 > Última revisión: 2026-08-25.
 
 ## 1. Propósito
@@ -206,8 +206,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.9 | Bucle observar-planificar-actuar-evaluar | `COMPLETADO` | Ninguno. |
 | v0.10 | Recuperación y memoria procedural | `COMPLETADO` | Ninguno. |
 | v0.11 | Confirmaciones y permisos completos | `COMPLETADO` | Ninguno. |
-| v0.12 | Aplicación de escritorio y servicio local | `PENDIENTE` | Ejecutar UI-01. |
-| v0.13 | Entrada por voz | `PENDIENTE` | Solo después de cerrar v0.12. |
+| v0.12 | Aplicación de escritorio y servicio local | `COMPLETADO` | Ninguno. |
+| v0.13 | Entrada por voz | `PENDIENTE` | Ejecutar VOICE-01. |
 | v0.14 | Control remoto propio | `PENDIENTE` | Solo después de cerrar v0.13. |
 
 Las versiones posteriores a v0.12 extienden la visión original y deberán revisarse
@@ -930,6 +930,25 @@ fuera del núcleo.
 La ejecución permanente al iniciar Windows requiere una decisión separada y no debe
 habilitarse de forma silenciosa.
 
+### Secuencia
+
+1. `UI-01` — `COMPLETADO`: `DesktopAgentService` encapsula controlador, historial,
+   permisos y ciclo de vida sin mover dominio a Tkinter ni abrir un socket.
+2. `UI-02` — `COMPLETADO`: historial acotado en memoria conserva tarea, estado,
+   etapa, herramienta, resultado y evidencia observable; nunca se persiste.
+3. `UI-03` — `COMPLETADO`: panel de confirmación muestra efecto, riesgo y destino;
+   aprobar o rechazar usa el contrato exacto y de un uso de v0.11.
+4. `UI-04` — `COMPLETADO`: cancelación individual de cola, stop, emergencia y cierre
+   comparten el servicio; una fase activa solo cede en su límite seguro.
+5. `UI-05` — `COMPLETADO`: la ventana muestra herramienta activa, resultado,
+   evidencia, latencia, tokens, costo y presupuesto.
+6. `UI-06` — `COMPLETADO`: el monitor Win32 detecta escritorio bloqueado o incierto,
+   suspende y cancela pendientes; reanudar exige sesión disponible y acción manual.
+7. `UI-07` — `COMPLETADO`: inicio solo mediante `--gui`, lock por usuario, cierre
+   idempotente y sin autostart, escucha de red ni transporte remoto.
+8. `UI-08` — `COMPLETADO`: dieciséis pruebas nuevas y smoke con Tk 8.6 real validan
+   servicio, UI, permisos y sesión con datos ficticios; suite total de 290 casos.
+
 ## 17. v0.13 — Entrada por voz
 
 ### Objetivo de versión
@@ -1127,7 +1146,7 @@ Sí/No y motivo.
 
 ## 25. Próxima acción autorizable
 
-El primer paso no completado es `UI-01 — Contrato del servicio local` de v0.12. El usuario
+El primer paso no completado es `VOICE-01 — Política de privacidad` de v0.13. El usuario
 autorizó el 2026-08-25 avanzar automáticamente y ejecutar las validaciones necesarias
 hasta v0.14. Esta autorización no permite usar credenciales, realizar gastos ni
 exponer servicios a Internet cuando la misma evidencia puede obtenerse con dobles o

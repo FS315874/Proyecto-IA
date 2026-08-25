@@ -29,6 +29,13 @@ class ControllerState(str, Enum):
     CLOSED = "closed"
 
 
+class ControllerCancelStatus(str, Enum):
+    CANCELLED = "cancelled"
+    ACTIVE_NOT_INTERRUPTIBLE = "active_not_interruptible"
+    NOT_FOUND = "not_found"
+    CLOSED = "closed"
+
+
 class ControllerUpdateKind(str, Enum):
     ACKNOWLEDGED = "acknowledged"
     PROGRESS = "progress"
@@ -45,6 +52,7 @@ class ControllerUpdate:
     state: ControllerState
     request_id: str | None = None
     stage: CommandStage | None = None
+    tool_name: str | None = None
     execution: CommandExecution | None = None
     message: str | None = None
     queue_ms: float | None = None
@@ -183,6 +191,35 @@ class LocalAgentController:
             )
         self._emit_state(ControllerState.STOPPING)
 
+    def cancel(self, request_id: str) -> ControllerCancelStatus:
+        if not isinstance(request_id, str) or not request_id:
+            raise LocalControllerError("El identificador de orden no es válido.")
+        cancelled: _CommandRequest | None = None
+        with self._condition:
+            if self._state is ControllerState.CLOSED or self._shutdown_requested:
+                return ControllerCancelStatus.CLOSED
+            if self._active_request_id == request_id:
+                return ControllerCancelStatus.ACTIVE_NOT_INTERRUPTIBLE
+            remaining: deque[_CommandRequest] = deque()
+            while self._pending:
+                candidate = self._pending.popleft()
+                if candidate.request_id == request_id and cancelled is None:
+                    cancelled = candidate
+                else:
+                    remaining.append(candidate)
+            self._pending = remaining
+        if cancelled is None:
+            return ControllerCancelStatus.NOT_FOUND
+        self._emit(
+            ControllerUpdate(
+                ControllerUpdateKind.CANCELLED,
+                self.snapshot.state,
+                request_id=request_id,
+                message="Orden pendiente cancelada.",
+            )
+        )
+        return ControllerCancelStatus.CANCELLED
+
     def request_close(self) -> None:
         cancelled: list[_CommandRequest]
         with self._condition:
@@ -278,6 +315,7 @@ class LocalAgentController:
                         ControllerState.RUNNING,
                         request_id=request.request_id,
                         stage=value.stage,
+                        tool_name=value.tool_name,
                     )
                 )
 

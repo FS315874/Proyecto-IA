@@ -331,7 +331,7 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 274 pruebas automatizadas, todas sin red ni efectos reales. El runner
+Estado actual: 290 pruebas automatizadas, todas sin red ni efectos reales. El runner
 manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
 y usa red.
 
@@ -463,7 +463,7 @@ para saltar versiones o decisiones del usuario.
 | v0.9 | Bucle observe-plan-act-evaluate | Completada |
 | v0.10 | Recuperación y estrategias alternativas | Completada |
 | v0.11 | Confirmaciones y permisos completos | Completada |
-| v0.12 | Interfaz de escritorio | Pendiente |
+| v0.12 | Interfaz de escritorio | Completada |
 | v0.13 | Entrada por voz | Pendiente |
 | v0.14 | Control remoto propio | Pendiente |
 
@@ -875,3 +875,35 @@ demuestran que una carrera de aprobación emite un solo token y una carrera de e
 alcanza la herramienta una sola vez. Los logs registran IDs, capacidad, efecto,
 herramienta, estado, canal y duración, sin destino, valores, challenge ni excepción
 privada. Dieciocho pruebas y un QA ficticio elevan la suite a 274 casos.
+
+## 28. Estado de implementación de v0.12
+
+v0.12 reutiliza la ventana Tkinter existente y agrega `DesktopAgentService` como
+frontera local transport-neutral. La vista no llama herramientas: envía órdenes,
+cancelaciones y decisiones estructuradas al servicio, que conserva el
+`LocalAgentController`, el coordinador de permisos y el ciclo de vida. No existe un
+servidor HTTP, socket, autostart ni proceso residente oculto.
+
+El historial guarda como máximo cien tareas en memoria. Cada entrada contiene ID,
+tipo, etiqueta visible, estado, etapa, herramienta activa, resultado y evidencia con
+éxito observable, tiempos y motivo. Las órdenes se muestran al dueño en la ventana,
+pero no se escriben en logs ni disco. Al alcanzar el límite solo se reemplaza la tarea
+terminal más antigua; las tareas activas nunca se descartan.
+
+La UI agrega tabla de tareas, cancelación seleccionada, herramienta activa, panel de
+resultado/evidencia y panel de confirmación. Este último muestra efecto, riesgo y
+destino, pero no challenge ni token. Aprobar y rechazar usan `PermissionBroker`; los
+efectos bloqueados no abren panel. Las órdenes de texto actuales continúan siendo
+`SAFE`, por lo que el panel queda listo para capacidades posteriores sin habilitar una
+herramienta sensible de producción.
+
+`WindowsSessionMonitor` comprueba el escritorio interactivo con APIs `user32`. Una
+sesión bloqueada o una comprobación incierta suspende el servicio, cancela cola y
+confirmación pendiente y solicita stop de emergencia. Un desbloqueo no reactiva el
+agente: `Reanudar` vuelve a comprobar disponibilidad. Cerrar cancela pendientes,
+detiene reproducción, cierra el worker y libera el lock.
+
+Dieciséis pruebas nuevas cubren historial, herramienta activa, cancelación, política,
+límites, ciclo de vida y estados de sesión. Un smoke con Tk 8.6 real construyó la vista
+oculta, procesó una orden ficticia, verificó evidencia y cerró sin red ni efectos
+externos. La suite suma 290 pruebas.
