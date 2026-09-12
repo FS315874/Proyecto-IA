@@ -137,7 +137,7 @@ def main() -> int:
         print("VOICE_QA_FAILED")
         return 1
     print(
-        "VOICE_QA_OK: transcripcion local corregida y enviada por el pipeline; "
+        "VOICE_QA_OK: transcripcion simulada corregida y enviada por el pipeline; "
         "cancelacion verbal exacta activo emergencia; sin microfono ni red."
     )
     return 0

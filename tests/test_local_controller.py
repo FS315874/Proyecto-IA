@@ -8,10 +8,13 @@ from pathlib import Path
 
 from desktop_agent.command_processor import (
     CommandExecution,
+    CommandProcessor,
     CommandProgress,
     CommandStage,
 )
 from desktop_agent.interpretation import (
+    HybridInterpreter,
+    ProposalProviderResult,
     InterpretationPath,
     InterpretationResult,
     InterpretationStatus,
@@ -28,6 +31,7 @@ from desktop_agent.local_controller import (
     SingleInstanceLock,
 )
 from desktop_agent.models import ToolResult
+from desktop_agent.executor import ActionExecutor
 
 
 def usage_snapshot(total_tokens: int = 0) -> MonthlyUsageSnapshot:
@@ -168,6 +172,45 @@ class LocalAgentControllerTests(unittest.TestCase):
         self.assertEqual(result_ids, [first, second])
         self.assertIs(controller.snapshot.state, ControllerState.IDLE)
 
+    def test_stop_during_interpretation_prevents_late_tool_execution(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        effects = []
+
+        class Provider:
+            def propose(self, command):
+                started.set()
+                release.wait(2)
+                return ProposalProviderResult({"schema_version": 1, "intent": "OPEN_APPLICATION", "target": "calculator"})
+
+        processor = CommandProcessor(
+            ActionExecutor({"open_application": lambda **args: effects.append(args) or ToolResult(True, "ok")}, self.logger),
+            HybridInterpreter(Provider(), deterministic_parser=lambda _: None), self.logger,
+        )
+        controller = self.build_controller(processor)
+        request_id = controller.submit("texto ficticio para prueba")
+        try:
+            self.assertTrue(started.wait(1))
+            controller.request_stop(emergency=True)
+        finally:
+            release.set()
+        updates = self.wait_for_updates(controller, lambda values: any(v.kind is ControllerUpdateKind.CANCELLED and v.request_id == request_id for v in values))
+        self.assertEqual(effects, [])
+        cancelled = next(v for v in updates if v.kind is ControllerUpdateKind.CANCELLED and v.request_id == request_id)
+        self.assertTrue(cancelled.execution.cancelled)
+        self.assertFalse(cancelled.execution.success)
+
+    def test_worker_error_does_not_leak_private_exception(self) -> None:
+        class Processor:
+            def execute(self, *args, **kwargs):
+                raise RuntimeError("fake-secret-private-error")
+
+        controller = self.build_controller(Processor())
+        controller.submit("texto ficticio")
+        updates = self.wait_for_updates(controller, lambda values: any(v.kind is ControllerUpdateKind.ERROR for v in values))
+        self.assertNotIn("fake-secret-private-error", self.log_output.getvalue())
+        self.assertNotIn("fake-secret-private-error", repr(updates))
+
     def test_rejects_empty_oversized_and_post_close_commands(self) -> None:
         controller = self.build_controller(FakeProcessor())
 
@@ -305,6 +348,20 @@ class LocalAgentControllerTests(unittest.TestCase):
         )
 
         self.assertEqual(controller.snapshot.monthly_usage, current)
+
+    def test_accepts_usage_refresh_from_a_shared_voice_ledger(self) -> None:
+        initial = usage_snapshot()
+        current = usage_snapshot(12)
+        controller = self.build_controller(
+            FakeProcessor(),
+            initial_usage=initial,
+        )
+
+        controller.update_monthly_usage(current)
+
+        self.assertEqual(controller.snapshot.monthly_usage, current)
+        with self.assertRaises(TypeError):
+            controller.update_monthly_usage(object())
 
 
 class SingleInstanceLockTests(unittest.TestCase):

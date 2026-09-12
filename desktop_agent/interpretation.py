@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
+from desktop_agent.browser_contract import normalize_search_query
 from desktop_agent.catalog import SUPPORTED_APPLICATIONS, SUPPORTED_SITES
 from desktop_agent.models import Action, Intent, RiskLevel
 from desktop_agent.parser import parse_command
@@ -18,6 +19,8 @@ class ProposalIntent(str, Enum):
 
     OPEN_URL = "OPEN_URL"
     OPEN_APPLICATION = "OPEN_APPLICATION"
+    PLAY_YOUTUBE = "PLAY_YOUTUBE"
+    STOP_YOUTUBE = "STOP_YOUTUBE"
     UNSUPPORTED = "UNSUPPORTED"
 
 
@@ -215,10 +218,16 @@ def _validate_proposal_values(
         raise ProposalValidationError(
             "El destino debe ser una clave canónica no vacía."
         )
-    if intent is ProposalIntent.UNSUPPORTED and target is not None:
-        raise ProposalValidationError("UNSUPPORTED requiere un destino null.")
-    if intent is not ProposalIntent.UNSUPPORTED and target is None:
+    without_target = {ProposalIntent.UNSUPPORTED, ProposalIntent.STOP_YOUTUBE}
+    if intent in without_target and target is not None:
+        raise ProposalValidationError("Este intent requiere un destino null.")
+    if intent not in without_target and target is None:
         raise ProposalValidationError("Un intent ejecutable requiere un destino.")
+    if intent is ProposalIntent.PLAY_YOUTUBE:
+        try:
+            target = normalize_search_query(target)
+        except ValueError:
+            raise ProposalValidationError("La consulta de YouTube no es válida.") from None
 
     return ActionProposal(
         schema_version=schema_version,
@@ -257,6 +266,16 @@ def build_action_from_proposal(proposal: ActionProposal) -> Action | None:
 
     if proposal.intent is ProposalIntent.UNSUPPORTED:
         return None
+
+    if proposal.intent in {ProposalIntent.PLAY_YOUTUBE, ProposalIntent.STOP_YOUTUBE}:
+        playing = proposal.intent is ProposalIntent.PLAY_YOUTUBE
+        return Action(
+            intent=Intent.BROWSER_NAVIGATION,
+            tool_name="play_youtube" if playing else "stop_youtube",
+            arguments={"query": proposal.target} if playing else {},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
 
     target = proposal.target
     assert target is not None

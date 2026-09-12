@@ -67,6 +67,43 @@ class UsageTestSupport:
 
 class MonthlyUsageLedgerTests(UsageTestSupport, unittest.TestCase):
 
+    def test_accepts_an_exact_small_reservation_for_duration_pricing(self) -> None:
+        ledger = self.ledger()
+
+        reservation_id, pending = ledger.reserve(0.0003)
+        settled = ledger.settle(
+            reservation_id,
+            ProposalUsage(0, 0, 0),
+            0.0003,
+        )
+
+        self.assertAlmostEqual(pending.estimated_cost_usd, 0.0003)
+        self.assertEqual(pending.pending_reservation_count, 1)
+        self.assertAlmostEqual(settled.estimated_cost_usd, 0.0003)
+        self.assertEqual(settled.pending_reservation_count, 0)
+
+    def test_rejects_invalid_custom_reservations(self) -> None:
+        ledger = self.ledger()
+
+        for amount in (0, -0.1, float("inf"), float("nan"), True):
+            with self.subTest(amount=amount):
+                with self.assertRaises(ValueError):
+                    ledger.reserve(amount)
+
+        self.assertFalse(self.path.exists())
+
+    def test_release_removes_an_unspent_reservation_and_request(self) -> None:
+        ledger = self.ledger()
+        reservation_id, _ = ledger.reserve(0.0003)
+
+        released = ledger.release(reservation_id)
+
+        self.assertEqual(released.request_count, 0)
+        self.assertEqual(released.pending_reservation_count, 0)
+        self.assertEqual(released.estimated_cost_usd, 0)
+        with self.assertRaises(UsageLedgerError):
+            ledger.release(reservation_id)
+
     def test_accumulates_tokens_cost_and_persists_across_instances(self) -> None:
         ledger = self.ledger()
         first_id, reserved = ledger.reserve()

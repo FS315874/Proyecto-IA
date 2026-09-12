@@ -1,7 +1,7 @@
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from desktop_agent.executor import ActionExecutionError, ActionExecutor
@@ -37,6 +37,7 @@ class CommandExecution:
     duration_ms: float
     tool_result: ToolResult | None = None
     tool_name: str | None = None
+    cancelled: bool = False
 
 
 Output = Callable[[str], None]
@@ -136,6 +137,8 @@ class CommandProcessor:
         command: str,
         output: Output = print,
         progress: ProgressOutput | None = None,
+        *,
+        cancelled: Callable[[], bool] = lambda: False,
     ) -> CommandExecution:
         started_at = self._clock()
         messages: list[str] = []
@@ -158,6 +161,11 @@ class CommandProcessor:
         if monthly_usage_message is not None:
             emit(monthly_usage_message)
 
+        if cancelled():
+            emit("Orden cancelada antes de ejecutar acciones.")
+            result = self._finished(False, messages, interpretation, started_at, progress)
+            return replace(result, cancelled=True)
+
         if interpretation.status is InterpretationStatus.BUDGET_EXCEEDED:
             self._logger.info("Status: AI_BUDGET_EXCEEDED")
             emit("Límite mensual de IA alcanzado; no se realizó la llamada.")
@@ -176,8 +184,15 @@ class CommandProcessor:
 
         action = interpretation.action
         if action is None:
-            self._logger.info("Status: UNSUPPORTED_COMMAND")
-            emit("Comando no soportado todavía.")
+            self._logger.info("Status: %s", interpretation.status.value.upper())
+            if interpretation.status is InterpretationStatus.PROVIDER_ERROR:
+                emit("La IA no pudo responder. Revisá conexión, clave y saldo de API en Configuración.")
+            elif interpretation.status is InterpretationStatus.INVALID_PROPOSAL:
+                emit("La IA devolvió una propuesta inválida; no se ejecutó ninguna acción.")
+            elif not interpretation.provider_configured:
+                emit("Comando no soportado todavía. Activá la interpretación con IA en Configuración para usar frases libres.")
+            else:
+                emit("Ese pedido todavía no tiene una herramienta disponible. Consultá los ejemplos de la aplicación.")
             return self._finished(
                 False, messages, interpretation, started_at, progress
             )

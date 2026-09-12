@@ -25,6 +25,7 @@ class BrowserOperation(str, Enum):
     START_PLAYBACK = "START_PLAYBACK"
     READ_PLAYBACK = "READ_PLAYBACK"
     VERIFY_PLAYBACK = "VERIFY_PLAYBACK"
+    RESET = "RESET"
     CLOSE = "CLOSE"
 
 
@@ -158,6 +159,8 @@ def normalize_search_query(
             "La consulta del navegador debe ser texto."
         )
     normalized = re.sub(r"\s+", " ", query).strip()
+    if any(ord(character) < 32 or ord(character) == 127 for character in normalized):
+        raise BrowserContractValidationError("La consulta contiene controles no permitidos.")
     if not normalized:
         raise BrowserContractValidationError(
             "La consulta del navegador no puede estar vacía."
@@ -314,13 +317,14 @@ class BrowserStepResult:
             BrowserOperation.START_PLAYBACK: PlaybackSnapshot,
             BrowserOperation.READ_PLAYBACK: PlaybackSnapshot,
             BrowserOperation.VERIFY_PLAYBACK: PlaybackSnapshot,
+            BrowserOperation.RESET: None,
             BrowserOperation.CLOSE: None,
         }
         expected_payload = expected_payloads[self.operation]
         if expected_payload is None:
             if self.payload is not None:
                 raise BrowserContractValidationError(
-                    "El cierre no puede incluir una observación."
+                    "La operación sin resultado no puede incluir una observación."
                 )
         elif not isinstance(self.payload, expected_payload):
             raise BrowserContractValidationError(
@@ -400,5 +404,7 @@ class BrowserAdapter(Protocol):
     def read_playback(self) -> BrowserStepResult: ...
 
     def verify_playback(self) -> BrowserStepResult: ...
+
+    def reset(self) -> BrowserStepResult: ...
 
     def close(self) -> BrowserStepResult: ...

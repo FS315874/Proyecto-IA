@@ -133,7 +133,7 @@ class ProcessCommandTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(
             output,
-            ["Entendiendo comando...", "Comando no soportado todavía."],
+            ["Entendiendo comando...", "Comando no soportado todavía. Activá la interpretación con IA en Configuración para usar frases libres."],
         )
 
     def test_processes_application_command(self) -> None:
@@ -304,7 +304,7 @@ class ProcessCommandTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(provider.commands, ["una formulación libre"])
         self.assertEqual(executions, [])
-        self.assertEqual(output[-1], "Comando no soportado todavía.")
+        self.assertEqual(output[-1], "La IA no pudo responder. Revisá conexión, clave y saldo de API en Configuración.")
         log = self.log_output.getvalue()
         self.assertIn("path=external", log)
         self.assertIn("status=provider_error", log)
@@ -486,7 +486,7 @@ class V04CliIntegrationTests(unittest.TestCase):
         self.assertEqual(
             output,
             [
-                "Desktop Agent v0.14.0 — escribí 'salir' para terminar.",
+                "Desktop Agent v0.17.0 — escribí 'salir' para terminar.",
                 "Reproducción detenida.",
                 "Hasta luego.",
             ],

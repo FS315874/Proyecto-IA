@@ -116,6 +116,7 @@ class LocalAgentController:
         self._state = ControllerState.IDLE
         self._active_request_id: str | None = None
         self._stop_requested = False
+        self._active_cancellation = threading.Event()
         self._shutdown_requested = False
         self._monthly_usage = initial_usage
         self._next_request_number = 1
@@ -136,6 +137,13 @@ class LocalAgentController:
                 stop_requested=self._stop_requested,
                 monthly_usage=self._monthly_usage,
             )
+
+    def update_monthly_usage(self, snapshot: MonthlyUsageSnapshot) -> None:
+        """Sincroniza telemetría de otro adaptador que comparte el mismo ledger."""
+        if not isinstance(snapshot, MonthlyUsageSnapshot):
+            raise TypeError("El acumulado mensual no es válido.")
+        with self._condition:
+            self._monthly_usage = snapshot
 
     def submit(self, command: str) -> str:
         if not isinstance(command, str):
@@ -177,6 +185,7 @@ class LocalAgentController:
                 cancelled = list(self._pending)
                 self._pending.clear()
             self._stop_requested = True
+            self._active_cancellation.set()
             self._state = ControllerState.STOPPING
             self._condition.notify()
 
@@ -199,6 +208,7 @@ class LocalAgentController:
             if self._state is ControllerState.CLOSED or self._shutdown_requested:
                 return ControllerCancelStatus.CLOSED
             if self._active_request_id == request_id:
+                self._active_cancellation.set()
                 return ControllerCancelStatus.ACTIVE_NOT_INTERRUPTIBLE
             remaining: deque[_CommandRequest] = deque()
             while self._pending:
@@ -228,6 +238,7 @@ class LocalAgentController:
             cancelled = list(self._pending)
             self._pending.clear()
             self._shutdown_requested = True
+            self._active_cancellation.set()
             self._stop_requested = True
             self._state = ControllerState.STOPPING
             self._condition.notify()
@@ -277,6 +288,7 @@ class LocalAgentController:
                     operation = "command"
                     request = self._pending.popleft()
                     self._active_request_id = request.request_id
+                    self._active_cancellation.clear()
                     self._state = ControllerState.RUNNING
 
             if operation == "shutdown":
@@ -320,13 +332,12 @@ class LocalAgentController:
                 )
 
             try:
-                execution = self._processor.execute(
-                    request.command,
-                    output=lambda _: None,
-                    progress=progress,
-                )
+                options = {"output": lambda _: None, "progress": progress}
+                if isinstance(self._processor, CommandProcessor):
+                    options["cancelled"] = self._active_cancellation.is_set
+                execution = self._processor.execute(request.command, **options)
             except Exception:
-                self._logger.exception("Controller status: ERROR")
+                self._logger.error("Controller status: ERROR reason=internal_failure")
                 total_ms = max(
                     0.0, (self._clock() - request.submitted_at) * 1_000
                 )
@@ -350,10 +361,11 @@ class LocalAgentController:
                         self._monthly_usage = monthly
                 self._emit(
                     ControllerUpdate(
-                        ControllerUpdateKind.RESULT,
+                        ControllerUpdateKind.CANCELLED if execution.cancelled else ControllerUpdateKind.RESULT,
                         ControllerState.RUNNING,
                         request_id=request.request_id,
                         execution=execution,
+                        message="Orden cancelada antes de ejecutar acciones." if execution.cancelled else None,
                         queue_ms=queue_ms,
                         total_ms=total_ms,
                     )
@@ -375,7 +387,7 @@ class LocalAgentController:
         try:
             return self._playback_controller.stop()
         except Exception:
-            self._logger.exception("Controller stop status: ERROR")
+            self._logger.error("Controller stop status: ERROR reason=internal_failure")
             return ToolResult(False, "No se pudo detener la reproducción activa.")
 
     def _emit_state(

@@ -22,8 +22,7 @@ def open_url(
     if not opened:
         return ToolResult(
             success=False,
-            message="Windows no confirmó que pudiera iniciar el navegador.",
+            message="No se pudo confirmar la apertura del sitio. Revisá el navegador elegido y la conexión de la extensión en Sesión web.",
         )
 
     return ToolResult(success=True, message=f"URL abierta correctamente: {url}")
-

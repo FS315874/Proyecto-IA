@@ -8,6 +8,7 @@ from desktop_agent.voice import (
     VoiceBackendResult,
     VoiceController,
     VoiceError,
+    VoiceFailureReason,
     VoiceResultStatus,
     VoiceState,
     is_voice_cancel_command,
@@ -89,6 +90,48 @@ class VoiceContractTests(unittest.TestCase):
                 "es-UY",
                 1,
                 1,
+            )
+        external = VoiceBackendResult(
+            VoiceResultStatus.READY,
+            "texto libre",
+            None,
+            "es-ES",
+            1,
+            1,
+            0.0001,
+        )
+        self.assertIsNone(external.confidence)
+        self.assertAlmostEqual(external.estimated_cost_usd, 0.0001)
+        for invalid_cost in (-1, float("inf"), float("nan"), True):
+            with self.subTest(cost=invalid_cost), self.assertRaises(VoiceError):
+                VoiceBackendResult(
+                    VoiceResultStatus.READY,
+                    "texto libre",
+                    None,
+                    "es-ES",
+                    1,
+                    1,
+                    invalid_cost,
+                )
+        with self.assertRaises(VoiceError):
+            VoiceBackendResult(
+                VoiceResultStatus.READY,
+                "texto libre",
+                None,
+                "es-ES",
+                1,
+                1,
+                failure_reason=VoiceFailureReason.NETWORK,
+            )
+        with self.assertRaises(VoiceError):
+            VoiceBackendResult(
+                VoiceResultStatus.FAILED,
+                None,
+                None,
+                "none",
+                1,
+                1,
+                failure_reason="network",
             )
 
 

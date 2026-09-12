@@ -38,7 +38,7 @@ class BrowserSessionState(str, Enum):
 
 @dataclass(frozen=True)
 class BrowserSecurityPolicy:
-    """Política fija de v0.4 para un navegador aislado y de una sola página."""
+    """Política fija para un navegador semántico de una sola página."""
 
     allowed_site_keys: frozenset[str] = field(
         default_factory=lambda: frozenset({"youtube"})
@@ -62,14 +62,20 @@ class BrowserSecurityPolicy:
             raise ValueError("La allowlist del navegador no es válida.")
         if type(self.max_pages) is not int or self.max_pages != 1:
             raise ValueError("v0.4 permite exactamente una página.")
-        restricted_flags = (
+        flags = (
             self.allow_downloads,
             self.allow_extensions,
             self.allow_file_access,
             self.persistent_profile,
         )
-        if any(type(value) is not bool or value for value in restricted_flags):
-            raise ValueError("La política solicitada excede los permisos de v0.4.")
+        if any(type(value) is not bool for value in flags):
+            raise ValueError("La política del perfil contiene indicadores inválidos.")
+        if self.allow_downloads or self.allow_file_access:
+            raise ValueError("La política no permite descargas ni archivos locales.")
+        if self.allow_extensions is not self.persistent_profile:
+            raise ValueError(
+                "Una sesión habitual debe declarar perfil persistente y extensión."
+            )
 
 
 class SafeBrowserAdapter:
@@ -221,6 +227,22 @@ class SafeBrowserAdapter:
             BrowserOperation.VERIFY_PLAYBACK,
             self._verify_playback_observable,
         )
+
+    def reset(self) -> BrowserStepResult:
+        """Reutiliza página y contexto para un nuevo flujo semántico."""
+
+        if self._state is BrowserSessionState.CLOSED:
+            return self._invalid_state(BrowserOperation.RESET)
+        self._state = BrowserSessionState.READY
+        self._active_site_key = None
+        self._last_result_count = None
+        result = BrowserStepResult(
+            BrowserOperation.RESET,
+            BrowserStepStatus.SUCCESS,
+            0.0,
+        )
+        self._log_result(result)
+        return result
 
     def close(self) -> BrowserStepResult:
         if self._state is BrowserSessionState.CLOSED:

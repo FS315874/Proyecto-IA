@@ -476,13 +476,14 @@ class DesktopAgentServicePermissionTests(ServiceTestSupport, unittest.TestCase):
         coordinator, _ = self.build_policy()
         service, _, _ = self.build_service(policy=coordinator)
 
-        voice_task = service.submit_voice_transcript("abrir calculadora")
+        voice_task = service.submit_voice_transcript("Abrir calculadora.")
         snapshot = self.wait_for(
             service,
             lambda value: value.history[-1].state.terminal,
         )
         self.assertEqual(snapshot.history[-1].task_id, voice_task)
         self.assertEqual(snapshot.history[-1].kind.value, "voice_command")
+        self.assertEqual(snapshot.history[-1].state, TaskState.SUCCEEDED)
 
         service.submit_policy_action(self.policy_subject())
         with self.assertRaisesRegex(ServiceError, "voz no puede resolver"):

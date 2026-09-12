@@ -56,6 +56,8 @@ class ValidateProposalTests(unittest.TestCase):
         cases = (
             ("OPEN_URL", "youtube", ProposalIntent.OPEN_URL),
             ("OPEN_APPLICATION", "vscode", ProposalIntent.OPEN_APPLICATION),
+            ("PLAY_YOUTUBE", "qué tan malo puedo ser", ProposalIntent.PLAY_YOUTUBE),
+            ("STOP_YOUTUBE", None, ProposalIntent.STOP_YOUTUBE),
             ("UNSUPPORTED", None, ProposalIntent.UNSUPPORTED),
         )
 
@@ -116,6 +118,10 @@ class ValidateProposalTests(unittest.TestCase):
         invalid_payloads = (
             {"schema_version": 1, "intent": "OPEN_URL", "target": None},
             {"schema_version": 1, "intent": "UNSUPPORTED", "target": "youtube"},
+            {"schema_version": 1, "intent": "STOP_YOUTUBE", "target": "youtube"},
+            {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": None},
+            {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": "x" * 201},
+            {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": "x\x00y"},
         )
 
         for payload in invalid_payloads:
@@ -125,6 +131,21 @@ class ValidateProposalTests(unittest.TestCase):
 
 
 class BuildActionFromProposalTests(unittest.TestCase):
+    def test_natural_youtube_proposal_stays_within_registered_tools(self) -> None:
+        provider = FakeProposalProvider({"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": "música tranquila"})
+        interpreter = HybridInterpreter(provider, deterministic_parser=lambda _: None)
+        action = interpreter.interpret("che, elegime algo tranquilo de YouTube")
+        self.assertEqual(action.tool_name, "play_youtube")
+        self.assertEqual(action.arguments, {"query": "música tranquila"})
+        self.assertIs(action.risk_level, RiskLevel.SAFE)
+        self.assertFalse(action.requires_confirmation)
+        self.assertEqual(len(provider.commands), 1)
+
+    def test_stop_proposal_has_no_model_supplied_destination(self) -> None:
+        action = build_action_from_proposal(ActionProposal(1, ProposalIntent.STOP_YOUTUBE, None))
+        self.assertEqual(action.tool_name, "stop_youtube")
+        self.assertEqual(action.arguments, {})
+
     def test_builds_url_action_using_only_local_data(self) -> None:
         action = build_action_from_proposal(
             ActionProposal(1, ProposalIntent.OPEN_URL, "youtube")

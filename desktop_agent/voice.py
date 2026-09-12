@@ -27,7 +27,22 @@ class VoiceResultStatus(str, Enum):
     NO_SPEECH = "no_speech"
     CANCELLED = "cancelled"
     UNAVAILABLE = "unavailable"
+    BUDGET_EXCEEDED = "budget_exceeded"
     FAILED = "failed"
+
+
+class VoiceFailureReason(str, Enum):
+    PROVIDER_SETUP = "provider_setup"
+    AUTHENTICATION = "authentication"
+    PERMISSION = "permission"
+    MODEL_UNAVAILABLE = "model_unavailable"
+    QUOTA_OR_RATE_LIMIT = "quota_or_rate_limit"
+    REQUEST_REJECTED = "request_rejected"
+    TIMEOUT = "timeout"
+    NETWORK = "network"
+    SERVICE_UNAVAILABLE = "service_unavailable"
+    INVALID_RESPONSE = "invalid_response"
+    UNKNOWN = "unknown"
 
 
 class VoiceState(str, Enum):
@@ -44,21 +59,31 @@ class VoiceState(str, Enum):
 class VoiceBackendResult:
     status: VoiceResultStatus
     transcript: str | None
-    confidence: float
+    confidence: float | None
     culture: str
     capture_ms: float
     transcription_ms: float
+    estimated_cost_usd: float | None = None
+    failure_reason: VoiceFailureReason | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, VoiceResultStatus):
             raise VoiceError("El estado de voz no es válido.")
+        if self.failure_reason is not None:
+            if not isinstance(self.failure_reason, VoiceFailureReason):
+                raise VoiceError("La causa del fallo de voz no es válida.")
+            if self.status is not VoiceResultStatus.FAILED:
+                raise VoiceError(
+                    "Una causa externa sólo corresponde a una transcripción fallida."
+                )
         confidence = self.confidence
-        if (
-            type(confidence) not in (int, float)
-            or not math.isfinite(float(confidence))
-            or not 0 <= float(confidence) <= 1
-        ):
-            raise VoiceError("La confianza de voz no es válida.")
+        if confidence is not None:
+            if (
+                type(confidence) not in (int, float)
+                or not math.isfinite(float(confidence))
+                or not 0 <= float(confidence) <= 1
+            ):
+                raise VoiceError("La confianza de voz no es válida.")
         if not isinstance(self.culture, str) or _CULTURE.fullmatch(
             self.culture
         ) is None:
@@ -79,13 +104,23 @@ class VoiceBackendResult:
             object.__setattr__(self, "transcript", transcript)
         elif self.transcript is not None:
             raise VoiceError("Un resultado sin voz no puede contener texto.")
-        object.__setattr__(self, "confidence", float(confidence))
+        if confidence is not None:
+            object.__setattr__(self, "confidence", float(confidence))
         object.__setattr__(self, "capture_ms", float(self.capture_ms))
         object.__setattr__(
             self,
             "transcription_ms",
             float(self.transcription_ms),
         )
+        cost = self.estimated_cost_usd
+        if cost is not None:
+            if (
+                type(cost) not in (int, float)
+                or not math.isfinite(float(cost))
+                or float(cost) < 0
+            ):
+                raise VoiceError("El costo de voz no es válido.")
+            object.__setattr__(self, "estimated_cost_usd", float(cost))
 
 
 def normalize_transcript(value: object) -> str:
@@ -104,7 +139,7 @@ def is_voice_cancel_command(transcript: object) -> bool:
         normalized = normalize_transcript(transcript)
     except VoiceError:
         return False
-    return normalized.casefold() in _VOICE_CANCEL_COMMANDS
+    return normalized.casefold().strip(".!?¡¿ ") in _VOICE_CANCEL_COMMANDS
 
 
 @runtime_checkable
@@ -233,7 +268,7 @@ class VoiceController:
             result = VoiceBackendResult(
                 VoiceResultStatus.FAILED,
                 None,
-                0,
+                None,
                 "none",
                 0,
                 0,
@@ -246,6 +281,7 @@ class VoiceController:
                 result.culture,
                 result.capture_ms,
                 result.transcription_ms,
+                result.estimated_cost_usd,
             )
         state = {
             VoiceResultStatus.READY: VoiceState.READY,
@@ -253,6 +289,7 @@ class VoiceController:
             VoiceResultStatus.CANCELLED: VoiceState.CANCELLED,
             VoiceResultStatus.NO_SPEECH: VoiceState.ERROR,
             VoiceResultStatus.UNAVAILABLE: VoiceState.ERROR,
+            VoiceResultStatus.BUDGET_EXCEEDED: VoiceState.ERROR,
             VoiceResultStatus.FAILED: VoiceState.ERROR,
         }[result.status]
         total_ms = max(0.0, (self._clock() - started) * 1000)
@@ -270,14 +307,23 @@ class VoiceController:
         self._updates.put(update)
         self._logger.info(
             "Voice: capture=%s state=%s status=%s culture=%s "
-            "confidence=%.3f capture_ms=%.3f transcription_ms=%.3f "
-            "total_ms=%.3f",
+            "confidence=%s capture_ms=%.3f transcription_ms=%.3f "
+            "total_ms=%.3f estimated_cost_usd=%s",
             capture_id,
             state.value.upper(),
             result.status.value,
             result.culture,
-            result.confidence,
+            (
+                f"{result.confidence:.3f}"
+                if result.confidence is not None
+                else "none"
+            ),
             result.capture_ms,
             result.transcription_ms,
             total_ms,
+            (
+                f"{result.estimated_cost_usd:.9f}"
+                if result.estimated_cost_usd is not None
+                else "none"
+            ),
         )

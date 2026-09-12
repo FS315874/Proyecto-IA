@@ -125,6 +125,10 @@ class OpenAIProposalProviderTests(unittest.TestCase):
             "chrome",
             "vscode",
             "calculator",
+            "steam",
+            "voicemeeter",
+            "league_of_legends",
+            "god_of_war_ragnarok",
         ):
             self.assertIn(canonical_key, instructions)
         self.assertNotIn("https://", instructions)
@@ -207,7 +211,7 @@ class OpenAIProposalProviderTests(unittest.TestCase):
         self.assertEqual(properties["schema_version"]["enum"], [1])
         self.assertEqual(
             properties["intent"]["enum"],
-            ["OPEN_URL", "OPEN_APPLICATION", "UNSUPPORTED"],
+            ["OPEN_URL", "OPEN_APPLICATION", "PLAY_YOUTUBE", "STOP_YOUTUBE", "UNSUPPORTED"],
         )
         self.assertEqual(properties["target"]["type"], ["string", "null"])
 

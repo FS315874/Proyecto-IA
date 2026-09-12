@@ -105,6 +105,8 @@ class WindowsSpeechBackend:
             "-NoLogo",
             "-NoProfile",
             "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
             "-File",
             str(self._script_path),
             "-Culture",

@@ -4,6 +4,7 @@ import unicodedata
 from desktop_agent.browser_contract import normalize_search_query
 from desktop_agent.catalog import (
     APPLICATION_ALIASES,
+    SITE_ALIASES,
     SUPPORTED_APPLICATIONS,
     SUPPORTED_SITES,
 )
@@ -25,6 +26,15 @@ _YOUTUBE_STOP_PATTERN = re.compile(
     r"^\s*(?:deten[eé]|detener|par[aá]|parar)\s+youtube\s*$",
     re.IGNORECASE,
 )
+_LEADING_SENTENCE_PUNCTUATION = re.compile(r"^\s*[¡¿]+\s*")
+_TRAILING_SENTENCE_PUNCTUATION = re.compile(r"\s*[.!?¡¿]+\s*$")
+
+
+def _without_sentence_boundary_punctuation(command: str) -> str:
+    """Quita sólo puntuación que un transcriptor agrega a la frase completa."""
+
+    without_leading = _LEADING_SENTENCE_PUNCTUATION.sub("", command)
+    return _TRAILING_SENTENCE_PUNCTUATION.sub("", without_leading)
 
 
 def _normalize(command: str) -> str:
@@ -41,6 +51,7 @@ def parse_command(command: str) -> Action | None:
 
     if not isinstance(command, str):
         return None
+    command = _without_sentence_boundary_punctuation(command)
 
     if _YOUTUBE_STOP_PATTERN.fullmatch(command):
         return Action(
@@ -69,11 +80,15 @@ def parse_command(command: str) -> Action | None:
 
     normalized = _normalize(command)
     parts = normalized.split(" ", maxsplit=1)
-    if len(parts) != 2 or parts[0] not in {"abrir", "abri"}:
+    if len(parts) != 2 or parts[0] not in {"abrir", "abri", "abre"}:
         return None
 
     target = parts[1]
-    site = SUPPORTED_SITES.get(target)
+    target_parts = target.split(" ", maxsplit=1)
+    if len(target_parts) == 2 and target_parts[0] in {"el", "la"}:
+        target = target_parts[1]
+    site_key = SITE_ALIASES.get(target)
+    site = SUPPORTED_SITES.get(site_key) if site_key is not None else None
     if site is not None:
         return Action(
             intent=Intent.OPEN_URL,

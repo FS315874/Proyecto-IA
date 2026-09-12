@@ -173,17 +173,17 @@ class V03SimulatedAcceptanceTests(unittest.TestCase):
     def test_out_of_catalog_target_is_rejected_without_execution(self) -> None:
         provider = MappingProposalProvider(
             {
-                "abrime Spotify": {
+                "abrime Discord": {
                     "schema_version": 1,
                     "intent": "OPEN_APPLICATION",
-                    "target": "spotify",
+                    "target": "discord",
                 }
             }
         )
         output: list[str] = []
 
         success = process_command(
-            "abrime Spotify",
+            "abrime Discord",
             self.executor(),
             self.logger,
             output.append,
@@ -191,9 +191,9 @@ class V03SimulatedAcceptanceTests(unittest.TestCase):
         )
 
         self.assertFalse(success)
-        self.assertEqual(provider.commands, ["abrime Spotify"])
+        self.assertEqual(provider.commands, ["abrime Discord"])
         self.assertEqual(self.executions, [])
-        self.assertEqual(output[-1], "Comando no soportado todavía.")
+        self.assertEqual(output[-1], "La IA devolvió una propuesta inválida; no se ejecutó ninguna acción.")
         self.assertIn("status=invalid_proposal", self.log_output.getvalue())
 
     def test_disabled_provider_rejects_natural_command_without_side_effects(self) -> None:
@@ -222,7 +222,7 @@ class V03SimulatedAcceptanceTests(unittest.TestCase):
         self.assertEqual(factory_calls, [])
         self.assertEqual(self.executions, [])
         self.assertFalse(self.usage_path.exists())
-        self.assertEqual(output[-1], "Comando no soportado todavía.")
+        self.assertEqual(output[-1], "Comando no soportado todavía. Activá la interpretación con IA en Configuración para usar frases libres.")
 
     def test_simulated_provider_failure_is_metered_and_has_no_side_effects(self) -> None:
         provider = FailingProposalProvider()
@@ -243,7 +243,7 @@ class V03SimulatedAcceptanceTests(unittest.TestCase):
             "Uso IA 2026-08: 12 tokens, USD 0.000004 de USD 1.00.",
             output,
         )
-        self.assertEqual(output[-1], "Comando no soportado todavía.")
+        self.assertEqual(output[-1], "La IA no pudo responder. Revisá conexión, clave y saldo de API en Configuración.")
         self.assertIn("status=provider_error", self.log_output.getvalue())
 
     def test_monthly_budget_blocks_before_simulated_provider_call(self) -> None:

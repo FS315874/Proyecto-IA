@@ -2,6 +2,7 @@ import json
 import math
 import os
 import re
+import threading
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -163,15 +164,37 @@ class MonthlyUsageLedger:
         self._reservation_id_factory = (
             reservation_id_factory or (lambda: uuid.uuid4().hex)
         )
+        self._lock = threading.RLock()
 
     def current_snapshot(self) -> MonthlyUsageSnapshot:
+        with self._lock:
+            return self._current_snapshot()
+
+    def _current_snapshot(self) -> MonthlyUsageSnapshot:
         state = self._load_state()
         month = self._read_month()
         record = state["months"].get(month, _empty_record())
         assert isinstance(record, dict)
         return self._snapshot(month, record)
 
-    def reserve(self) -> tuple[str, MonthlyUsageSnapshot]:
+    def reserve(
+        self,
+        amount_usd: float = CALL_RESERVATION_USD,
+    ) -> tuple[str, MonthlyUsageSnapshot]:
+        if (
+            type(amount_usd) not in (int, float)
+            or not math.isfinite(float(amount_usd))
+            or float(amount_usd) <= 0
+        ):
+            raise ValueError("La reserva de presupuesto debe ser positiva.")
+        reservation = float(amount_usd)
+        with self._lock:
+            return self._reserve(reservation)
+
+    def _reserve(
+        self,
+        reservation: float,
+    ) -> tuple[str, MonthlyUsageSnapshot]:
         state = self._load_state()
         month = self._read_month()
         months = state["months"]
@@ -180,7 +203,7 @@ class MonthlyUsageLedger:
         assert isinstance(record, dict)
 
         snapshot = self._snapshot(month, record)
-        if snapshot.remaining_usd + 1e-12 < CALL_RESERVATION_USD:
+        if snapshot.remaining_usd + 1e-12 < reservation:
             raise ProposalBudgetExceededError(
                 "El presupuesto mensual de IA no permite otra llamada.",
                 ProposalProviderResult(
@@ -197,7 +220,7 @@ class MonthlyUsageLedger:
         assert isinstance(pending, dict)
         if reservation_id in pending:
             raise UsageLedgerError("No se pudo crear una reserva de presupuesto.")
-        pending[reservation_id] = CALL_RESERVATION_USD
+        pending[reservation_id] = reservation
         record["request_count"] = int(record["request_count"]) + 1
         self._save_state(state)
         return reservation_id, self._snapshot(month, record)
@@ -208,31 +231,19 @@ class MonthlyUsageLedger:
         usage: ProposalUsage | None,
         estimated_cost_usd: float | None,
     ) -> MonthlyUsageSnapshot:
+        with self._lock:
+            return self._settle(reservation_id, usage, estimated_cost_usd)
+
+    def _settle(
+        self,
+        reservation_id: str,
+        usage: ProposalUsage | None,
+        estimated_cost_usd: float | None,
+    ) -> MonthlyUsageSnapshot:
         state = self._load_state()
-        months = state["months"]
-        assert isinstance(months, dict)
-
-        matching_month: str | None = None
-        matching_record: dict[str, object] | None = None
-        reservation_amount: float | None = None
-        for month, record in months.items():
-            assert isinstance(month, str)
-            assert isinstance(record, dict)
-            pending = record["pending_reservations"]
-            assert isinstance(pending, dict)
-            if reservation_id in pending:
-                if matching_month is not None:
-                    raise UsageLedgerError("El registro local de uso es inválido.")
-                matching_month = month
-                matching_record = record
-                reservation_amount = float(pending[reservation_id])
-
-        if (
-            matching_month is None
-            or matching_record is None
-            or reservation_amount is None
-        ):
-            raise UsageLedgerError("La reserva de presupuesto no existe.")
+        matching_month, matching_record, reservation_amount = (
+            self._find_reservation(state, reservation_id)
+        )
 
         pending = matching_record["pending_reservations"]
         assert isinstance(pending, dict)
@@ -275,6 +286,45 @@ class MonthlyUsageLedger:
         )
         self._save_state(state)
         return self._snapshot(matching_month, matching_record)
+
+    def release(self, reservation_id: str) -> MonthlyUsageSnapshot:
+        """Libera una reserva cuando se comprobó que no hubo llamada externa."""
+        with self._lock:
+            state = self._load_state()
+            matching_month, matching_record, _ = self._find_reservation(
+                state,
+                reservation_id,
+            )
+            pending = matching_record["pending_reservations"]
+            assert isinstance(pending, dict)
+            del pending[reservation_id]
+            request_count = int(matching_record["request_count"])
+            if request_count <= 0:
+                raise UsageLedgerError("El registro local de uso es inválido.")
+            matching_record["request_count"] = request_count - 1
+            self._save_state(state)
+            return self._snapshot(matching_month, matching_record)
+
+    @staticmethod
+    def _find_reservation(
+        state: dict[str, object],
+        reservation_id: str,
+    ) -> tuple[str, dict[str, object], float]:
+        months = state["months"]
+        assert isinstance(months, dict)
+        matching: tuple[str, dict[str, object], float] | None = None
+        for month, record in months.items():
+            assert isinstance(month, str)
+            assert isinstance(record, dict)
+            pending = record["pending_reservations"]
+            assert isinstance(pending, dict)
+            if reservation_id in pending:
+                if matching is not None:
+                    raise UsageLedgerError("El registro local de uso es inválido.")
+                matching = (month, record, float(pending[reservation_id]))
+        if matching is None:
+            raise UsageLedgerError("La reserva de presupuesto no existe.")
+        return matching
 
     def _read_month(self) -> str:
         month = self._month_provider()

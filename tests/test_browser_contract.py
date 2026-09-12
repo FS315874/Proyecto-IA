@@ -98,6 +98,13 @@ class FakeAdapter:
     def verify_playback(self) -> BrowserStepResult:
         return self._playback_result(BrowserOperation.VERIFY_PLAYBACK)
 
+    def reset(self) -> BrowserStepResult:
+        return BrowserStepResult(
+            BrowserOperation.RESET,
+            BrowserStepStatus.SUCCESS,
+            0.0,
+        )
+
     def close(self) -> BrowserStepResult:
         return BrowserStepResult(
             BrowserOperation.CLOSE,

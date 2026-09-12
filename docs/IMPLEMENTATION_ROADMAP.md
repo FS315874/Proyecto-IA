@@ -1,8 +1,8 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.14 completada en el núcleo.
-> Última revisión: 2026-08-25.
+> Estado comprobado del producto: v0.17 implementada; aceptación de voz real y extensión pendiente.
+> Última revisión: 2026-09-11.
 
 ## 1. Propósito
 
@@ -209,9 +209,13 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.12 | Aplicación de escritorio y servicio local | `COMPLETADO` | Ninguno. |
 | v0.13 | Entrada por voz | `COMPLETADO` | Ninguno. |
 | v0.14 | Control remoto propio | `COMPLETADO` | Ninguno. |
+| v0.15 | Navegador habitual y Spotify | `PRUEBA_USUARIO` | Instalar y probar extensión. |
+| v0.16 | Aplicaciones locales habituales | `PRUEBA_USUARIO` | Probar aperturas visibles. |
+| v0.17 | Uso cotidiano y auditoría | `PRUEBA_USUARIO` | Validar micrófono, atajo y extensión con la versión nueva. |
 
-Las versiones posteriores a v0.12 extienden la visión original y deberán revisarse
-cuando se acerquen. Su presencia no autoriza incorporarlas antes de tiempo.
+Los estados históricos de núcleo/demo no implican que esas capacidades estén todas
+conectadas a la GUI. La aceptación vigente y los límites reales están en
+[V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); el roadmap no autoriza futuros módulos.
 
 ## 7. v0.3 — Interpretación de lenguaje natural
 
@@ -1117,7 +1121,124 @@ Optimizaciones permitidas después de medir:
 
 La velocidad nunca justifica omitir verificaciones o confirmaciones relevantes.
 
-## 22. Privacidad y seguridad transversal
+## 22. v0.15 — Navegador habitual y Spotify
+
+### Objetivo de versión
+
+Corregir la diferencia observada entre el navegador habitual y Chromium aislado,
+agregar Spotify y reducir latencia mediante reutilización, sin entregar a una
+extensión control general del navegador.
+
+### Alcance autorizado
+
+El usuario aprobó implementar conjuntamente:
+
+- Spotify web y aplicación nativa cuando esté instalada;
+- navegador preferido configurable;
+- reutilización de una sesión/pestaña;
+- control opt-in de la sesión habitual de Chrome u Opera GX.
+
+### Pasos
+
+| Paso | Tipo | Estado | Evidencia |
+| --- | --- | --- | --- |
+| BROWSER-15-01 — Catálogo Spotify | `AUTOMATICO` | `COMPLETADO` | Parser y launcher cubiertos por tests. |
+| BROWSER-15-02 — Preferencia local | `AUTOMATICO` | `COMPLETADO` | Esquema cerrado, guardado atómico y UI. |
+| BROWSER-15-03 — Reutilización | `AUTOMATICO` | `COMPLETADO` | Adaptador reiniciable y test de segunda reproducción. |
+| BROWSER-15-04 — Puente local | `AUTOMATICO` | `COMPLETADO` | Named pipe autenticado, DPAPI, límites y lock. |
+| BROWSER-15-05 — Extensión | `AUTOMATICO` | `COMPLETADO` | Manifest V3, ID fijo y permisos mínimos verificados. |
+| BROWSER-15-06 — QA simulado | `AUTOMATICO` | `COMPLETADO` | 366 tests, smoke Tk y `browser15_qa_check`. |
+| BROWSER-15-07 — Instalación y prueba real | `PRUEBA_USUARIO` | `PENDIENTE` | Host registrado y extensión conectada en Chrome; falta recorrido completo. |
+
+### Decisiones de seguridad
+
+- La sesión habitual es opt-in y requiere seleccionar Chrome u Opera GX.
+- Una desconexión no provoca fallback oculto hacia otro navegador.
+- La extensión gestiona una sola pestaña y no adopta pestañas arbitrarias.
+- Sólo YouTube permite inspección/inyección; Spotify, Google y GitHub son URLs fijas.
+- No se aceptan scripts, selectores, ejecutables o URLs producidos por un modelo.
+- `detener youtube` pausa la reproducción sin cerrar el navegador habitual.
+
+La decisión completa está en [V0.15_ARCHITECTURE.md](V0.15_ARCHITECTURE.md).
+
+### Estabilización de voz posterior a la auditoría
+
+Esta corrección no abre una versión nueva ni amplía las herramientas disponibles.
+Resuelve el dictado incorrecto observado durante la prueba de v0.15:
+
+- `VOICE-FIX-01` — `COMPLETADO`: se reprodujo la baja precisión de `System.Speech` y
+  se descartaron gramáticas o listas de comandos como solución no universal.
+- `VOICE-FIX-02` — `COMPLETADO`: captura mono acotada con `sounddevice`, detector local
+  de silencio y WAV sólo en memoria; no hay escucha permanente.
+- `VOICE-FIX-03` — `COMPLETADO`: `gpt-transcribe` opt-in recibe el WAV sin prompt,
+  keywords o frases prioritarias y devuelve texto editable.
+- `VOICE-FIX-04` — `COMPLETADO`: voz, texto y visión comparten el límite mensual; la
+  voz reserva costo por duración, no inventa tokens y libera reservas sin envío.
+- `VOICE-FIX-05` — `COMPLETADO`: pruebas de captura, configuración, proveedor,
+  privacidad, costo, sincronización, errores externos y puntuación; suite total de 395
+  casos antes de v0.16.
+- `VOICE-FIX-06` — `COMPLETADO`: llamada real autorizada, transcripción correcta de
+  `Abrir calculadora.` y apertura correcta mediante la GUI.
+
+La decisión completa está en
+[VOICE_TRANSCRIPTION_ARCHITECTURE.md](VOICE_TRANSCRIPTION_ARCHITECTURE.md).
+
+## 23. v0.16 — Aplicaciones locales habituales
+
+### Objetivo de versión
+
+Abrir Steam, VoiceMeeter Banana, League of Legends y God of War Ragnarök mediante el
+mismo pipeline seguro de texto o voz, y no declarar éxito hasta observar un proceso
+esperado.
+
+### Alcance autorizado
+
+- cuatro destinos nuevos en el catálogo cerrado;
+- alias deterministas para el camino frecuente y rápido;
+- interpretación natural existente mediante Luna cuando el usuario inicia el lanzador
+  de voz con opt-in y API key;
+- resolución por rutas y ejecutables fijos;
+- verificación local, acotada y sin shell mediante nombres de proceso permitidos.
+
+No incluye controlar las aplicaciones después de abrir, reproducir Spotify, buscar
+archivos o proyectos ni modificar el volumen de Windows.
+
+### Pasos
+
+| Paso | Tipo | Estado | Evidencia |
+| --- | --- | --- | --- |
+| APP-16-01 — Contrato y catálogo | `AUTOMATICO` | `COMPLETADO` | Entradas fijas, alias y rutas comprobadas localmente. |
+| APP-16-02 — Interpretación natural | `AUTOMATICO` | `COMPLETADO` | Luna sólo propone claves canónicas; lanzador efímero habilita ambos opt-ins. |
+| APP-16-03 — Evidencia de proceso | `AUTOMATICO` | `COMPLETADO` | Tool Help nativo, coincidencia exacta, timeout y fallo seguro. |
+| APP-16-04 — QA simulado | `AUTOMATICO` | `COMPLETADO` | `application16_qa_check` y 401 pruebas aprobadas sin efectos reales. |
+| APP-16-05 — Apertura visible | `PRUEBA_USUARIO` | `PENDIENTE` | Probar los cuatro destinos sin automatizar el inicio de juegos reales. |
+
+La decisión completa está en [V0.16_ARCHITECTURE.md](V0.16_ARCHITECTURE.md).
+
+## 24. v0.17 — Uso cotidiano y auditoría de los recorridos existentes
+
+Autorizada por el usuario para pulir la aplicación y retomar los problemas del chat.
+Capacidad principal: dejar el asistente configurado y operable por texto/voz desde la
+GUI, conservando herramientas, permisos y presupuesto. Sin nuevos paquetes, commits,
+push ni llamadas pagas durante la auditoría.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| POLISH-01 — Auditar código y fallos reportados | `COMPLETADO` | Base de 401 tests aprobada; se agregaron regresiones para defectos no cubiertos. |
+| POLISH-02 — Configuración persistente y clave protegida | `COMPLETADO` | DPAPI, opt-ins, presupuesto editable, precedencia de settings, reinicio controlado. |
+| POLISH-03 — Voz sin vocabulario privilegiado | `COMPLETADO` | Selector estable de dispositivo, medidor, terminar/cancelar, modos revisión/automático. |
+| POLISH-04 — Atajos explícitos | `COMPLETADO` | RegisterHotKey, conflictos y liberación probados; no hook ni escucha permanente. |
+| POLISH-05 — Cancelación y contabilidad | `COMPLETADO` | IA tardía no ejecuta, transcripción descartada no reaparece, rechazo de voz libera reserva. |
+| POLISH-06 — Navegador y aperturas | `COMPLETADO` | Preferencias inmediatas, conexión acotada, tab mute, esperas DOM, Riot Client con argumentos fijos. |
+| POLISH-07 — Regresión, GUI y documentación | `COMPLETADO` | Suite Python, tests JS y runners históricos; detalle en arquitectura v0.17. |
+| POLISH-08 — Aceptación personal | `PRUEBA_USUARIO` | Voz/atajo reales, extensión recargada y reproducción audible; Riot puede requerir atención manual. |
+
+El siguiente desarrollo no debe empezar con otro catálogo de frases. Primero cerrar
+POLISH-08; después acordar una capacidad concreta (por ejemplo catálogo de proyectos
+seleccionados por el usuario). Spotify por playlist, volumen por dispositivo, lectura
+en voz alta y exploración de aplicaciones desconocidas siguen fuera de esta versión.
+
+## 25. Privacidad y seguridad transversal
 
 - El equipo se considera un entorno con información potencialmente sensible.
 - Screenshots y accesibilidad se minimizan antes de enviarse externamente.
@@ -1130,7 +1251,7 @@ La velocidad nunca justifica omitir verificaciones o confirmaciones relevantes.
 - Toda tarea remota tiene timeout, cancelación y registro.
 - El usuario mantiene un mecanismo de emergencia probado.
 
-## 23. Mantenimiento de este roadmap
+## 26. Mantenimiento de este roadmap
 
 Al completar un paso se debe actualizar:
 
@@ -1145,7 +1266,7 @@ No se agregan nuevas versiones por cada idea puntual. Una capacidad futura se re
 solo cuando cambia materialmente la arquitectura o el producto y el usuario aprueba
 incorporarla al roadmap.
 
-## 24. Formato de entrega de cada paso
+## 26. Formato de entrega de cada paso
 
 ```text
 Paso completado:
@@ -1173,9 +1294,15 @@ Próximo paso habilitado:
 Sí/No y motivo.
 ```
 
-## 25. Próxima acción autorizable
+## 27. Próxima acción autorizable
 
-No queda un paso habilitado después de v0.14. Incorporar un relay real, credenciales,
-una aplicación móvil o una nueva versión requiere alcance y autorización nuevos. La
-validación de cierre usó dobles locales y no realizó gastos ni expuso servicios a
-Internet.
+Cerrar `POLISH-08`: aceptación personal de voz, cancelación/atajos, extensión recargada,
+reproducción audible y aperturas habituales. Incluye los recorridos pendientes de
+`APP-16-05` y `BROWSER-15-07`; Spotify significa apertura, no reproducción de playlists.
+La evidencia automatizada y las comprobaciones reales limitadas de la auditoría
+están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md). No equivalen a la aceptación
+del usuario ni autorizan llamadas pagas nuevas.
+
+Para continuar sin reconstruir el historial, consultar el punto de reanudación de
+[MASTER_GUIDE.md](MASTER_GUIDE.md). Después de la aceptación se acuerda una sola
+capacidad adicional antes de avanzar de versión.

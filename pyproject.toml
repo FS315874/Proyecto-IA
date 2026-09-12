@@ -1,6 +1,6 @@
 [project]
 name = "desktop-agent"
-version = "0.14.0"
+version = "0.17.0"
 description = "Agente de escritorio seguro con interpretación híbrida de instrucciones"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -8,7 +8,17 @@ dependencies = [
     "cryptography==50.0.0",
     "openai==3.3.1",
     "playwright==1.62.0",
+    "sounddevice==0.5.6",
 ]
+
+[project.scripts]
+desktop-agent-browser-host = "desktop_agent.chrome_native_host:main"
+
+[project.gui-scripts]
+desktop-agent = "desktop_agent.launcher:main"
 
 [tool.setuptools.package-data]
 desktop_agent = ["assets/*.ps1"]
+
+[tool.setuptools.packages.find]
+include = ["desktop_agent*"]

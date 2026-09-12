@@ -8,6 +8,7 @@ from desktop_agent.browser_contract import (
     normalize_search_query,
 )
 from desktop_agent.catalog import SUPPORTED_SITES
+from desktop_agent.browser_bridge import BrowserBridgeError
 from desktop_agent.models import Intent, ToolResult
 
 AdapterFactory = Callable[[], BrowserAdapter]
@@ -97,6 +98,7 @@ class YouTubePlaybackTool:
         adapter_factory: AdapterFactory,
         logger: logging.Logger,
         clock: Clock = time.perf_counter,
+        session_key: Callable[[], object] = lambda: None,
     ) -> None:
         if not callable(adapter_factory):
             raise TypeError("La fábrica del adaptador debe ser invocable.")
@@ -108,6 +110,8 @@ class YouTubePlaybackTool:
         self._logger = logger
         self._clock = clock
         self._active_adapter: BrowserAdapter | None = None
+        self._session_key = session_key
+        self._active_session_key: object = None
 
     @property
     def has_active_session(self) -> bool:
@@ -128,19 +132,20 @@ class YouTubePlaybackTool:
                 "No se pudo verificar la reproducción segura en YouTube.",
             )
 
-        if self._active_adapter is not None and not self._close_active_session():
-            return ToolResult(
-                False,
-                "No se pudo cerrar la reproducción anterior de YouTube.",
-            )
-
-        adapter: BrowserAdapter | None = None
+        adapter = None
         flow_success = False
+        failure_message = "No se pudo verificar la reproducción segura en YouTube."
         try:
-            candidate = self._adapter_factory()
-            if not isinstance(candidate, BrowserAdapter):
-                raise TypeError("invalid adapter")
-            adapter = candidate
+            current_key = self._session_key()
+            if self._active_adapter is not None and current_key != self._active_session_key:
+                if not self.stop().success:
+                    return ToolResult(False, "No se pudo detener la sesión anterior al cambiar de navegador.")
+            adapter = self._reuse_active_adapter()
+            if adapter is None:
+                candidate = self._adapter_factory()
+                if not isinstance(candidate, BrowserAdapter):
+                    raise TypeError("invalid adapter")
+                adapter = candidate
 
             steps = (
                 lambda: adapter.open_site("youtube"),
@@ -155,7 +160,14 @@ class YouTubePlaybackTool:
             else:
                 flow_success = True
                 self._active_adapter = adapter
+                self._active_session_key = current_key
                 adapter = None
+        except BrowserBridgeError:
+            failure_message = (
+                "La extensión no está conectada al navegador elegido. Abrí ese navegador, "
+                "recargá Desktop Agent Browser Bridge en su lista de extensiones y "
+                "esperá a que Sesión web indique conectada. No se usó otro navegador."
+            )
         except Exception:
             flow_success = False
         finally:
@@ -175,12 +187,35 @@ class YouTubePlaybackTool:
         if not flow_success:
             return ToolResult(
                 False,
-                "No se pudo verificar la reproducción segura en YouTube.",
+                failure_message,
             )
         return ToolResult(
             True,
             "La reproducción segura se verificó y permanece activa en YouTube.",
         )
+
+    def _reuse_active_adapter(self) -> BrowserAdapter | None:
+        adapter = self._active_adapter
+        self._active_adapter = None
+        if adapter is None:
+            return None
+        try:
+            result = adapter.reset()
+        except Exception:
+            result = None
+        if result is not None and result.status is BrowserStepStatus.SUCCESS:
+            self._logger.info(
+                "Browser tool: destination=youtube operation=reuse status=success"
+            )
+            return adapter
+        try:
+            adapter.close()
+        except Exception:
+            pass
+        self._logger.info(
+            "Browser tool: destination=youtube operation=reuse status=failure"
+        )
+        return None
 
     def stop(self) -> ToolResult:
         """Detiene la sesión activa y libera sus recursos de forma idempotente."""

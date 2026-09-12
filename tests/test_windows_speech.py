@@ -91,6 +91,10 @@ class WindowsSpeechBackendTests(unittest.TestCase):
         self.assertEqual(result.status, VoiceResultStatus.READY)
         self.assertEqual(result.transcript, private)
         assert self.command is not None
+        self.assertIn(
+            ("-ExecutionPolicy", "Bypass", "-File"),
+            tuple(zip(self.command, self.command[1:], self.command[2:])),
+        )
         self.assertEqual(self.command[-4:], ("-Culture", "es-UY", "-MaxSeconds", "10"))
         self.assertNotIn(private, self.command)
         self.assertNotIn("-Command", self.command)
@@ -178,7 +182,6 @@ class WindowsSpeechBackendTests(unittest.TestCase):
                     powershell_path=existing,
                     **options,
                 )
-
 
 if __name__ == "__main__":
     unittest.main()

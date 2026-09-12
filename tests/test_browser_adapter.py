@@ -168,6 +168,17 @@ class BrowserSecurityPolicyTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     builder()
 
+    def test_allows_pinned_extension_only_with_persistent_profile(self) -> None:
+        policy = BrowserSecurityPolicy(
+            allow_extensions=True,
+            persistent_profile=True,
+        )
+
+        self.assertTrue(policy.allow_extensions)
+        self.assertTrue(policy.persistent_profile)
+        self.assertFalse(policy.allow_downloads)
+        self.assertFalse(policy.allow_file_access)
+
 
 class SafeBrowserAdapterTests(SafeBrowserTestSupport, unittest.TestCase):
     def playing_adapter(self) -> SafeBrowserAdapter:
@@ -496,6 +507,26 @@ class BrowserNavigationToolTests(SafeBrowserTestSupport, unittest.TestCase):
 
 
 class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
+    def test_browser_preference_change_closes_old_session_before_new_one(self) -> None:
+        from unittest.mock import Mock
+        first = self.adapter()
+        second = Mock(spec=type(first))
+        success = first.open_site("youtube")
+        for method in ("open_site", "search", "select_first_result", "start_playback", "verify_playback", "close"):
+            getattr(second, method).return_value = success
+        # La primera sesión debe comenzar con un adaptador nuevo.
+        first.reset()
+        selected = ["chrome"]
+        factory = Mock(side_effect=[first, second])
+        tool = YouTubePlaybackTool(factory, self.logger, session_key=lambda: selected[0])
+        self.assertTrue(tool("primera canción").success)
+        selected[0] = "opera_gx"
+        self.assertTrue(tool("segunda canción").success)
+        self.assertEqual(factory.call_count, 2)
+        self.assertEqual(self.close_order, ["context", "browser"])
+        second.search.assert_called_once_with("segunda canción")
+        tool.stop()
+
     def tool(self, factory=None) -> YouTubePlaybackTool:
         return YouTubePlaybackTool(
             factory or self.adapter,
@@ -551,6 +582,43 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
         self.assertTrue(tool.stop().success)
 
         self.assertEqual(self.close_order, ["context", "browser"])
+
+    def test_reuses_same_adapter_for_consecutive_playback(self) -> None:
+        factory_calls = 0
+
+        def factory():
+            nonlocal factory_calls
+            factory_calls += 1
+            return self.adapter()
+
+        tool = self.tool(factory)
+        self.assertTrue(tool("primera canción").success)
+        watch_page = PageSnapshot(
+            "https://www.youtube.com/watch?v=test",
+            "Test",
+        )
+        self.page.playback_snapshots = [
+            PlaybackSnapshot(
+                watch_page,
+                False,
+                False,
+                0.5,
+                1.0,
+            ),
+            PlaybackSnapshot(
+                watch_page,
+                False,
+                False,
+                0.5,
+                2.0,
+            ),
+        ]
+        self.assertTrue(tool("segunda canción").success)
+
+        self.assertEqual(factory_calls, 1)
+        self.assertEqual(self.close_order, [])
+        self.assertIn("operation=reuse status=success", self.log_output.getvalue())
+        self.assertTrue(tool.stop().success)
 
     def test_invalid_query_does_not_interrupt_active_playback(self) -> None:
         tool = self.tool()

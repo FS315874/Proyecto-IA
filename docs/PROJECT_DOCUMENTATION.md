@@ -162,7 +162,7 @@ fallback, de modo que un comando determinista no importa ni inicializa el client
 | `desktop_agent/openai_provider.py` | Solicitar una propuesta estructurada a OpenAI sin construir ni ejecutar acciones. |
 | `desktop_agent/usage_budget.py` | Persistir consumo mensual, reservar costo antes de una llamada y bloquear al alcanzar el límite local. |
 | `desktop_agent/tools/browser.py` | Validar y abrir URLs HTTP(S). |
-| `desktop_agent/tools/applications.py` | Resolver e iniciar aplicaciones permitidas. |
+| `desktop_agent/tools/applications.py` | Resolver, iniciar y verificar procesos de aplicaciones permitidas. |
 | `desktop_agent/logging_config.py` | Crear y configurar el log persistente. |
 | `tests/` | Verificar módulos y flujo sin efectos reales sobre el escritorio. |
 
@@ -200,13 +200,19 @@ Sitios actuales:
 
 - YouTube;
 - Google;
-- GitHub.
+- GitHub;
+- Spotify Web.
 
 Aplicaciones actuales:
 
 - Google Chrome;
 - Visual Studio Code;
-- Calculadora de Windows.
+- Calculadora de Windows;
+- Spotify;
+- Steam;
+- VoiceMeeter Banana;
+- League of Legends;
+- God of War Ragnarök.
 
 Los alias solo se usan para convertir texto conocido al identificador canónico. Por
 ejemplo, `vscode`, `vs code` y `visual studio code` producen el identificador
@@ -233,10 +239,14 @@ Recibe un identificador canónico del catálogo. La resolución sigue este orden
 3. error controlado si no se encuentra la aplicación.
 
 El proceso se inicia con una lista de argumentos de `subprocess.Popen`. No se usa
-`shell=True`, no se concatena un comando y no se interpreta texto del usuario.
+`shell=True`, no se concatena un comando y no se interpreta texto del usuario. Desde
+v0.16, la herramienta obtiene un snapshot mediante la API Tool Help de Windows y sólo
+declara éxito al observar uno de los nombres de proceso registrados para la
+aplicación. La espera es acotada a veinte intentos separados por 250 ms.
 
-Una creación exitosa del proceso confirma que Windows aceptó iniciarlo. v0.2 no
-inspecciona todavía la ventana ni valida su contenido.
+La evidencia confirma que el proceso quedó activo; no demuestra que la ventana esté
+lista ni valida contenido interno. Ante una comprobación ausente o ambigua se informa
+un fallo seguro y no se intenta terminar un proceso que podría haber arrancado tarde.
 
 ## 9. Seguridad
 
@@ -331,9 +341,13 @@ Comando:
 python -m unittest discover -s tests -v
 ```
 
-Estado actual: 304 pruebas automatizadas, todas sin red ni efectos reales. El runner
-manual de WEB-07 es independiente y requiere autorización porque abre Chromium visible
-y usa red.
+En la auditoría de v0.17 se aprobaron 439 tests Python y 9 tests JS, sin llamadas
+reales a OpenAI. Los tests JS se ejecutan por separado con
+`node --test tests/browser_extension.test.cjs`; los runners de aceptación seleccionan
+subconjuntos de la suite. El runner manual de WEB-07 es independiente y requiere
+autorización porque abre Chromium visible y usa red. Los resultados y límites de
+validación están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); la aceptación
+personal de voz y extensión sigue pendiente.
 
 ## 13. Evolución por versiones
 
@@ -397,10 +411,11 @@ validación. Las herramientas del sistema también fueron reemplazadas por doble
 
 ## 14. Limitaciones conocidas
 
-- Solo se entienden comandos incluidos en el catálogo.
+- Solo se ejecutan destinos incluidos en el catálogo; las formulaciones libres pueden
+  clasificarse mediante el fallback opt-in sin ampliar ese catálogo.
 - El lanzador de aplicaciones está orientado a Windows.
 - Las rutas conocidas pueden necesitar ampliarse para instalaciones no estándar.
-- No se valida visualmente que una ventana esté lista.
+- Se valida un proceso esperado, no que su ventana esté lista.
 - No hay argumentos para aplicaciones.
 - No existe planificación de varios pasos.
 - El adaptador de OpenAI no fue probado contra la API real.
@@ -466,6 +481,9 @@ para saltar versiones o decisiones del usuario.
 | v0.12 | Interfaz de escritorio | Completada |
 | v0.13 | Entrada por voz | Completada |
 | v0.14 | Control remoto propio | Completada en el núcleo; sin relay desplegado |
+| v0.15 | Navegador habitual y Spotify | Implementada; extensión instalada y conectada, recorrido completo pendiente |
+| v0.16 | Aplicaciones locales habituales | Implementada; prueba visible pendiente |
+| v0.17 | Uso cotidiano y auditoría | Implementada y testeada localmente; aceptación personal pendiente |
 
 El roadmap es una orientación, no un compromiso de implementar módulos antes de
 que la versión anterior sea estable.
@@ -910,7 +928,7 @@ externos. La suite suma 290 pruebas.
 
 ## 29. Estado de implementación de v0.13
 
-v0.13 adopta reconocimiento local de Windows. Un helper PowerShell fijo carga
+v0.13 adoptó originalmente reconocimiento local de Windows. Un helper PowerShell fijo carga
 `System.Speech`, elige `es-UY`, `es-AR` o `es-ES` y usa el micrófono predeterminado
 durante una sola frase de hasta diez segundos. El audio va directamente al motor del
 sistema: no se escribe en disco, no se envía a OpenAI ni a otra red y no requiere una
@@ -922,13 +940,18 @@ confianza, cultura y tiempos vuelven a validarse en Python. La baja confianza pr
 `AMBIGUOUS`; silencio, helper ausente, timeout o salida inválida no generan una orden.
 Stdout, stderr y transcripción nunca se agregan al log.
 
+El proceso aplica `-ExecutionPolicy Bypass` únicamente al helper fijo empaquetado.
+Esto evita el bloqueo previo a la captura observado con políticas locales restrictivas,
+sin modificar la política persistente de PowerShell ni aceptar contenido dinámico.
+
 `VoiceController` inicia únicamente por un gesto explícito, usa un worker cancelable y
 emite estados y métricas. La UI muestra captura, transcripción y total; el servicio ya
 mide interpretación y ejecución. La transcripción queda editable y sólo el botón de
 envío usa `submit_voice_transcript`, que atraviesa el mismo `CommandProcessor` que CLI
 y GUI. Una confirmación pendiente bloquea ese origen: decir `sí` nunca aprueba nada.
-Tras el envío explícito, el texto puede usar el fallback opt-in de IA y su presupuesto
-igual que una orden escrita; el audio no se adjunta ni abandona Windows.
+En esa versión, tras el envío explícito, el texto podía usar el fallback opt-in de IA
+y su presupuesto igual que una orden escrita; el audio no se adjuntaba ni abandonaba
+Windows. La estabilización vigente se documenta al final de la sección de v0.15.
 
 Las frases exactas `cancelar agente`, `detener agente` y `parar agente` con resultado
 no ambiguo solicitan emergencia inmediatamente. Esa excepción solo reduce efectos. La
@@ -978,3 +1001,150 @@ pairing, expiración, replay, revocación, rate limit, confirmación exacta, red
 HTTPS y ciclo del worker. La aceptación `remote14_qa_check` recorre orden, estado,
 replay, confirmación y revocación sobre el servicio local real con dobles ficticios,
 sin red ni acciones de escritorio. La suite suma 336 pruebas.
+
+## 31. Estado de implementación de v0.15
+
+v0.15 mantiene los dos entornos de navegación como alternativas explícitas. El modo
+directo abre URLs con el navegador de Windows o el ejecutable fijo de Chrome/Opera GX;
+la reproducción semántica continúa en el Chromium aislado de Playwright. El modo de
+sesión actual requiere elegir Chrome u Opera GX y una extensión conectada. Si no se
+cumple, falla de forma visible y no crea otra ventana como fallback.
+
+Spotify se incorporó al catálogo como web y como aplicación nativa diferenciada. Las
+órdenes `abrí spotify` y `abrí spotify web` usan la URL canónica; `abrí spotify app` y
+`abrí spotify escritorio` usan únicamente rutas o nombres de ejecutable permitidos.
+La disponibilidad real depende de la instalación del usuario.
+
+La preferencia se persiste fuera del repositorio con esquema cerrado y escritura
+atómica. La GUI permite elegir navegador, activar la pestaña gestionada y observar el
+estado del puente. CLI y GUI construyen el mismo ejecutor, por lo que no existen rutas
+alternativas que eludan catálogo o validación.
+
+La sesión exitosa de YouTube se reinicia y reutiliza para canciones consecutivas. En
+el backend de extensión esto conserva una única pestaña; en Playwright conserva el
+proceso, contexto y página. La detención de la sesión habitual pausa el elemento de
+video y no cierra el navegador.
+
+El puente usa Native Messaging sólo como transporte entre la extensión con ID fijo y
+un host local. Ese host se conecta a un named pipe autenticado con una clave aleatoria
+protegida por DPAPI. Los mensajes JSON tienen tamaño y esquema acotados, las respuestas
+deben corresponder a solicitudes pendientes y un lock impide que dos agentes
+sobrescriban el descriptor. La extensión sólo implementa operaciones fijas y sólo
+inyecta funciones propias en `https://www.youtube.com/*`.
+
+El registro del host no ocurre al ejecutar tests o abrir la GUI. Un script separado
+lo instala o retira para el usuario actual y verifica manifiesto, ejecutable, origen e
+ID. Cargar la extensión sigue siendo un gesto manual del usuario. La arquitectura,
+procedimiento, amenazas y límites se detallan en
+[V0.15_ARCHITECTURE.md](V0.15_ARCHITECTURE.md).
+
+Las pruebas nuevas cubren parser, catálogo, preferencias, selección de backend,
+reutilización, protocolo local, desconexión, framing nativo, manifiesto, permisos, ID,
+adaptador semántico, pausa y registro reversible. `browser15_qa_check` valida el
+camino nuevo con dobles sin red, navegador ni cambios de sistema. La prueba real de
+Opera GX/Chrome permanece pendiente del checkpoint autorizado. La suite completa
+aprobó originalmente 366 pruebas y el smoke test con Tcl/Tk real volvió a validar la
+ventana.
+
+### Estabilización de voz del 2026-08-26
+
+La prueba real posterior reprodujo un defecto funcional: el motor local convirtió
+`abrí calculadora` en una frase distinta. Se descartó mantener una gramática de
+comandos porque sólo privilegiaría ejemplos conocidos y haría necesario ampliar una
+lista cada vez que el producto creciera.
+
+La GUI selecciona ahora una captura `sounddevice.RawInputStream` mono, acotada y en
+memoria, seguida por `gpt-transcribe` sin prompt, keywords o frases prioritarias. El
+audio requiere un opt-in específico y se envía únicamente después del gesto; la
+transcripción queda editable y el envío al pipeline sigue siendo manual. El backend
+de Windows permanece como historia de v0.13 y como unidad testeada, no como opción
+vigente de la interfaz.
+
+Voz, texto y visión comparten un libro mensual protegido dentro del proceso. La voz
+reserva su costo estimado por duración antes de subir el WAV, no inventa tokens y
+actualiza el mismo total de dinero visible. Presupuesto agotado, silencio, cancelación,
+micrófono inaccesible o servicio fallido no ejecutan herramientas. Las decisiones se
+detallan en
+[VOICE_TRANSCRIPTION_ARCHITECTURE.md](VOICE_TRANSCRIPTION_ARCHITECTURE.md).
+
+La corrección agrega `sounddevice==0.5.6` y pruebas para captura, configuración,
+request externo mínimo, privacidad, costo, reservas y contador compartido. Después se
+clasificaron los errores externos por causa y se normalizó la puntuación de dictado en
+el parser. La suite llegó a 395 pruebas sin micrófono ni red. Una llamada real
+autorizada confirmó una transcripción correcta de `Abrir calculadora.` y la ejecución
+de la aplicación. La API key sólo existió en el proceso iniciado por el lanzador.
+
+El host nativo se registró para el usuario actual y la extensión quedó conectada a una
+pestaña gestionada de Google Chrome. Sigue pendiente repetir como un único recorrido
+visible Spotify, dos reproducciones consecutivas y pausa para cerrar por completo el
+checkpoint manual de v0.15.
+
+## 32. Estado de implementación de v0.16
+
+v0.16 agrega Steam, VoiceMeeter Banana, League of Legends y God of War Ragnarök al
+catálogo cerrado de aplicaciones. Cada entrada separa nombre visible, ejecutables que
+pueden resolverse, rutas fijas y procesos que sirven como evidencia. No existe una
+búsqueda libre del disco, argumentos de usuario o comando construido por el modelo.
+
+Las frases frecuentes conservan el camino determinista, rápido y sin API. El lanzador
+efímero de voz habilita además el intérprete de texto existente para que una
+formulación diferente pueda clasificarse mediante GPT-5.6 Luna. El proveedor sólo
+devuelve un identificador canónico en JSON estricto; `Action`, riesgo, herramienta,
+ruta y ejecución siguen siendo decisiones locales. Voz, texto y visión comparten el
+mismo libro y el límite de USD 1,00 por defecto.
+
+`open_application` ya no considera éxito la mera ausencia de una excepción de
+`Popen`. Enumera procesos con Tool Help, compara nombres completos del catálogo y
+espera como máximo cinco segundos. Si no obtiene evidencia declara fallo
+seguro y no intenta una terminación compensatoria que podría cerrar una instancia que
+apareció tarde.
+
+Las 401 pruebas automatizadas aprobadas cubren los destinos y alias nuevos, rechazo
+fuera del catálogo, rutas, redacción de errores, reintento, evidencia ausente, enumeración nativa
+y activación conjunta de voz e interpretación natural. La aceptación
+`application16_qa_check` usa dobles y no abre programas, micrófono o red. El diseño y
+los límites se detallan en [V0.16_ARCHITECTURE.md](V0.16_ARCHITECTURE.md). La prueba
+visible de los cuatro programas queda en manos del usuario para no iniciar juegos o
+clientes reales durante la automatización.
+
+## 33. Estado de implementación de v0.17
+
+La auditoría del 2026-09-10/11 retoma los fallos del uso real. Su capacidad principal
+es una GUI configurable que puede permanecer abierta para recibir texto o voz por
+atajo explícito. No sustituye la transcripción general por listas de frases.
+
+`AppSettingsStore` guarda opciones por usuario y protege opcionalmente la API key con
+Windows DPAPI. La clave no aparece en logs, argumentos, repositorio ni representaciones
+de la configuración. Un cambio se aplica con reinicio controlado e idéntico libro de
+consumo. Los rechazos explícitos de voz liberan reserva; las respuestas inciertas
+mantienen su estimación. El tope inicial sigue siendo USD 1,00.
+
+El micrófono se identifica por nombre y API de audio, se resuelve antes de cada captura
+y falla si desaparece. La GUI incorpora medidor, terminar frase, revisión o envío
+automático opt-in, Ctrl+Alt+Espacio y emergencia Ctrl+Alt+Esc. Un resultado tardío o
+duplicado no vuelve a enviar órdenes. Cancelar durante interpretación se comprueba
+antes del ejecutor. No se prometen interrupciones instantáneas de operaciones ya iniciadas.
+
+La propuesta simple de IA incorpora PLAY_YOUTUBE y STOP_YOUTUBE; la consulta es dato
+validado y la herramienta/riesgo/argumentos estructurales siguen siendo locales.
+La extensión verifica mute de pestaña además del reproductor, espera DOM dinámico,
+serializa solicitudes y recuerda su pestaña sólo durante la sesión del navegador.
+Las preferencias se guardan inmediatamente; cambiar de navegador invalida la sesión
+de reproducción anterior. Un navegador seleccionado cerrado puede arrancar con sus
+argumentos fijos y conectar la extensión; no hay fallback a otra sesión.
+
+La prueba de LeagueClient directo reprodujo acceso denegado de Windows. Se verificó
+el acceso directo instalado y se adoptó RiotClientServices con argumentos fijos de
+producto/canal. Riot Client inició, pero no se comprobó League listo; login/actualización
+siguen siendo atención manual, sin elevar privilegios. Las aperturas exigen dos
+observaciones consecutivas de proceso y aclaran el límite de esa evidencia.
+
+Durante la auditoría se conservaron cambios locales anteriores, sin commit/push.
+Arquitectura, decisiones,
+pruebas, fallos encontrados y próximo checkpoint están en
+[V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md).
+
+La continuidad con Sol u otro asistente se organiza desde
+[MASTER_GUIDE.md](MASTER_GUIDE.md), referenciada por `AGENTS.md`. Esa guía conserva
+el punto de reanudación, mapa de código y criterios de diagnóstico; no sustituye la
+evidencia del repositorio ni autoriza ampliar el alcance.

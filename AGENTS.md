@@ -5,6 +5,13 @@ repositorio. El estado comprobable tiene prioridad sobre planes o supuestos. Si 
 solicitud contradice las reglas o amplía materialmente el alcance, se debe pedir
 dirección antes de actuar.
 
+Para retomar el desarrollo, leer las secciones 1–3 de
+[`docs/MASTER_GUIDE.md`](docs/MASTER_GUIDE.md): contexto, punto de reanudación y
+contrato por pedido. Consultar las demás secciones según la tarea, sin recargar toda
+la historia. Esa guía complementa estas reglas; no amplía permisos ni reemplaza la
+verificación del estado real. Mantener actualizado su punto de reanudación al cerrar
+un hito autorizado.
+
 ## 1. Propósito del proyecto
 
 Desktop Agent es un agente de escritorio progresivo y seguro: transforma

@@ -33,9 +33,9 @@ class OpenUrlTests(unittest.TestCase):
         result = open_url("https://github.com/", opener=lambda _: False)
 
         self.assertFalse(result.success)
-        self.assertIn("no confirmó", result.message)
+        self.assertIn("No se pudo confirmar la apertura", result.message)
+        self.assertIn("Sesión web", result.message)
 
 
 if __name__ == "__main__":
     unittest.main()
-

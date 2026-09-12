@@ -5,6 +5,15 @@ from typing import Protocol, runtime_checkable
 
 from desktop_agent import __version__
 from desktop_agent.budgeted_provider import BudgetedProposalProvider
+from desktop_agent.browser_bridge import BrowserBridgeClient
+from desktop_agent.browser_preferences import (
+    BrowserPreferenceSource,
+    StaticBrowserPreferenceSource,
+)
+from desktop_agent.browser_runtime import (
+    BrowserRuntime,
+    PreferredYouTubeAdapterFactory,
+)
 from desktop_agent.command_processor import CommandProcessor
 from desktop_agent.executor import ActionExecutor
 from desktop_agent.interpretation import (
@@ -26,6 +35,7 @@ from desktop_agent.plans import (
     TaskPlanner,
 )
 from desktop_agent.playwright_backend import create_youtube_playwright_adapter
+from desktop_agent.preferred_browser import PreferredBrowserOpener
 from desktop_agent.provider_config import (
     ProviderConfig,
     ProviderConfigurationError,
@@ -52,31 +62,59 @@ class PlaybackController(Protocol):
     def stop(self) -> ToolResult: ...
 
 
-def _default_playback_controller(logger: logging.Logger) -> PlaybackController:
+def _default_playback_controller(
+    logger: logging.Logger,
+    browser_preferences: BrowserPreferenceSource,
+    browser_bridge: BrowserBridgeClient | None,
+) -> PlaybackController:
     return YouTubePlaybackTool(
-        lambda: create_youtube_playwright_adapter(logger),
+        PreferredYouTubeAdapterFactory(
+            browser_preferences,
+            browser_bridge,
+            logger,
+            isolated_factory=lambda: create_youtube_playwright_adapter(logger),
+            session_connector=PreferredBrowserOpener(
+                browser_preferences, bridge=browser_bridge,
+            ).ensure_current_session,
+        ),
         logger,
+        session_key=browser_preferences.load,
     )
 
 
 def build_executor(
     logger: logging.Logger,
     playback_controller: PlaybackController | None = None,
+    *,
+    browser_preferences: BrowserPreferenceSource | None = None,
+    browser_bridge: BrowserBridgeClient | None = None,
 ) -> tuple[ActionExecutor, PlaybackController]:
     """Registra herramientas sin iniciar Chromium hasta recibir una orden web."""
 
     if not isinstance(logger, logging.Logger):
         raise TypeError("El logger del ejecutor no es válido.")
+    preferences = browser_preferences or StaticBrowserPreferenceSource()
+    if not isinstance(preferences, BrowserPreferenceSource):
+        raise TypeError("Las preferencias del navegador no son válidas.")
+    if browser_bridge is not None and not isinstance(
+        browser_bridge,
+        BrowserBridgeClient,
+    ):
+        raise TypeError("El puente del navegador no cumple el contrato.")
     controller = (
         playback_controller
         if playback_controller is not None
-        else _default_playback_controller(logger)
+        else _default_playback_controller(logger, preferences, browser_bridge)
     )
     if not isinstance(controller, PlaybackController):
         raise TypeError("El controlador de reproducción no es válido.")
+    browser_opener = PreferredBrowserOpener(
+        preferences,
+        bridge=browser_bridge,
+    )
     executor = ActionExecutor(
         tools={
-            "open_url": open_url,
+            "open_url": lambda url: open_url(url, opener=browser_opener),
             "open_application": open_application,
             "play_youtube": controller,
             "stop_youtube": controller.stop,
@@ -326,47 +364,62 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"No se pudo crear el archivo de log: {error}", file=sys.stderr)
         return 1
 
-    executor, playback_controller = build_executor(logger)
+    browser_runtime = BrowserRuntime()
+    browser_runtime.start()
+    try:
+        executor, playback_controller = build_executor(
+            logger,
+            browser_preferences=browser_runtime.preferences,
+            browser_bridge=browser_runtime.bridge,
+        )
 
-    if arguments and arguments[0] == "--plan":
-        if len(arguments) == 1:
-            print("Falta la tarea que se debe planificar.", file=sys.stderr)
-            return 1
-        planner = build_task_planner(
+        if arguments and arguments[0] == "--plan":
+            if len(arguments) == 1:
+                print("Falta la tarea que se debe planificar.", file=sys.stderr)
+                return 1
+            planner = build_task_planner(
+                warning_output=lambda message: print(message, file=sys.stderr)
+            )
+            success = process_plan_command(
+                " ".join(arguments[1:]),
+                TaskPlanExecutor(executor, logger),
+                planner,
+                logger,
+            )
+            if playback_controller.has_active_session:
+                if success:
+                    success = (
+                        _hold_one_shot_playback(playback_controller) and success
+                    )
+                else:
+                    success = (
+                        _stop_active_playback(playback_controller, print) and success
+                    )
+            return 0 if success else 1
+
+        interpreter = build_interpreter(
             warning_output=lambda message: print(message, file=sys.stderr)
         )
-        success = process_plan_command(
-            " ".join(arguments[1:]),
-            TaskPlanExecutor(executor, logger),
-            planner,
-            logger,
-        )
-        if playback_controller.has_active_session:
+
+        if arguments:
+            command = " ".join(arguments)
+            success = process_command(
+                command,
+                executor,
+                logger,
+                interpreter=interpreter,
+            )
             if success:
-                success = _hold_one_shot_playback(playback_controller) and success
-            else:
-                success = _stop_active_playback(playback_controller, print) and success
-        return 0 if success else 1
+                success = (
+                    _hold_one_shot_playback(playback_controller) and success
+                )
+            return 0 if success else 1
 
-    interpreter = build_interpreter(
-        warning_output=lambda message: print(message, file=sys.stderr)
-    )
-
-    if arguments:
-        command = " ".join(arguments)
-        success = process_command(
-            command,
+        return _run_interactive(
             executor,
             logger,
-            interpreter=interpreter,
+            interpreter,
+            playback_controller,
         )
-        if success:
-            success = _hold_one_shot_playback(playback_controller) and success
-        return 0 if success else 1
-
-    return _run_interactive(
-        executor,
-        logger,
-        interpreter,
-        playback_controller,
-    )
+    finally:
+        browser_runtime.close()
