@@ -1,6 +1,7 @@
 import os
 import sys
 from collections.abc import Mapping
+from dataclasses import replace
 
 from desktop_agent import __version__
 from desktop_agent.app_settings import AppSettings, AppSettingsStore, SettingsError
@@ -37,6 +38,9 @@ from desktop_agent.local_service import (
     TaskHistoryEntry,
 )
 from desktop_agent.logging_config import configure_logging
+from desktop_agent.error_history import ErrorHistoryHandler, history_handler
+from desktop_agent.error_history_dialog import ErrorHistoryDialog
+from desktop_agent.diagnostics import emit_failure
 from desktop_agent.openai_voice import (
     BudgetedOpenAIVoiceBackend,
     OpenAITranscriptionProvider,
@@ -178,6 +182,8 @@ class TkDesktopAgentApp:
         recorder: SoundDeviceWavRecorder | None = None,
         hotkeys: GlobalHotkeys | None = None,
         settings_warning: str | None = None,
+        diagnostics: ErrorHistoryHandler | None = None,
+        diagnostic_logger=None,
     ) -> None:
         import tkinter as tk
         from tkinter import ttk
@@ -194,6 +200,10 @@ class TkDesktopAgentApp:
         self._settings_store = settings_store
         self._recorder = recorder
         self._hotkeys = hotkeys
+        self._diagnostics = diagnostics
+        self._diagnostic_logger = diagnostic_logger
+        self._error_dialog = None
+        self._browser_error = None
         self._voice_capture_id: str | None = None
         self._handled_captures: set[str] = set()
         self.next_settings: AppSettings | None = None
@@ -227,6 +237,9 @@ class TkDesktopAgentApp:
         self._settings_button = ttk.Button(heading, text="Configuración", command=self._open_settings, state="normal" if settings_store else "disabled")
         self._settings_button.pack(side="right")
         ttk.Button(heading, text="Ejemplos", command=self._show_examples).pack(side="right", padx=8)
+        self._errors_button = ttk.Button(heading, text="Historial de errores", command=self._open_errors,
+                                        state="normal" if diagnostics else "disabled")
+        self._errors_button.pack(side="right", padx=4)
         command_row = ttk.Frame(frame)
         command_row.grid(row=1, column=0, sticky="ew")
         command_row.columnconfigure(0, weight=1)
@@ -301,6 +314,8 @@ class TkDesktopAgentApp:
                 initial_preference = browser_runtime.preferences.load()
             except BrowserPreferenceError:
                 browser_error = "Sesión web: configuración dañada; no se modificó."
+                self._browser_error = browser_error
+                self._record_gui_failure("browser_preferences", "settings")
         self._saved_browser_preference = initial_preference
         self._browser_choice = tk.StringVar(
             value=BROWSER_LABELS[initial_preference.browser]
@@ -488,16 +503,32 @@ class TkDesktopAgentApp:
             self._append(settings_warning)
         root.after(POLL_INTERVAL_MS, self._poll)
 
+    def _record_gui_failure(self, code, stage):
+        if self._diagnostic_logger is not None:
+            emit_failure(self._diagnostic_logger, code, "gui", stage=stage)
+
+    def _open_errors(self):
+        if self._diagnostics is None:
+            return
+        if self._error_dialog is not None and self._error_dialog.window.winfo_exists():
+            self._error_dialog.refresh()
+            self._error_dialog.window.lift()
+        else:
+            self._error_dialog = ErrorHistoryDialog(self._root, self._diagnostics)
+
     def _show_examples(self) -> None:
         self._set_result(
             "Probá con una orden\n\n"
             "• Abrí calculadora\n• Abrí Steam\n• Abrí VoiceMeeter Banana\n"
             "• Abrí League of Legends\n• Abrí God of War Ragnarok\n"
             "• Poné en YouTube qué tan malo puedo ser\n• Detener YouTube\n"
-            "• Abrí Spotify app (instalado) o abrir Spotify (web)\n\n"
+            "• Poné la canción As It Was en Spotify\n"
+            "• Poné mi playlist 7W7 en Spotify\n"
+            "• Pausá Spotify · Seguí reproduciendo Spotify\n"
+            "• Siguiente canción en Spotify · Volumen de Spotify al 35 %\n\n"
             "Con IA activada también podés decirlo con tus palabras.\n"
             "Configuración permite elegir el micrófono, recordar la clave y cambiar el tope mensual.\n\n"
-            "La app puede abrir esos programas; todavía no controla su interior ni reproduce playlists de Spotify."
+            "Spotify requiere Premium, un Client ID propio y autorización inicial."
         )
 
     def _open_settings(self) -> None:
@@ -511,6 +542,18 @@ class TkDesktopAgentApp:
             self.next_settings = settings
             self._request_close()
 
+        try:
+            stored = self._settings_store.load(self._settings)
+            self._settings = replace(
+                stored,
+                api_key=stored.api_key or self._settings.api_key,
+            )
+        except SettingsError:
+            self._append(
+                "No se pudo recargar la configuración protegida. Revisá Historial de errores."
+            )
+            self._record_gui_failure("spotify_configuration", "settings")
+            return
         show_settings(self._root, self._settings, self._settings_store, saved)
 
     def _finish_voice(self) -> None:
@@ -578,6 +621,9 @@ class TkDesktopAgentApp:
         snapshot = self._service.snapshot
         self._refresh_snapshot(snapshot)
         self._refresh_browser_status()
+        if self._diagnostics is not None:
+            self._errors_button.configure(text=f"Historial: {self._diagnostics.dropped_count} sin guardar"
+                                          if self._diagnostics.dropped_count else "Historial de errores")
         if self._closing and snapshot.state is ServiceState.CLOSED:
             self._root.destroy()
             return
@@ -615,9 +661,15 @@ class TkDesktopAgentApp:
         try:
             preference = self._current_browser_preference()
             self._browser_runtime.preferences.save(preference)
-        except BrowserPreferenceError as error:
-            self._browser_status_text.set(f"Sesión web: {error}")
+        except BrowserPreferenceError:
+            self._browser_error = "Sesión web: no se pudo guardar; se conserva la última preferencia válida. Revisá Historial de errores."
+            self._browser_choice.set(BROWSER_LABELS[self._saved_browser_preference.browser])
+            self._browser_session.set(self._saved_browser_preference.use_current_session)
+            self._sync_browser_session_option()
+            self._browser_status_text.set(self._browser_error)
+            self._record_gui_failure("browser_preferences", "settings")
             return
+        self._browser_error = None
         self._saved_browser_preference = preference
         self._browser_status_text.set(
             format_browser_bridge(self._browser_runtime.snapshot, preference)
@@ -625,6 +677,9 @@ class TkDesktopAgentApp:
 
     def _refresh_browser_status(self) -> None:
         if self._browser_runtime is None:
+            return
+        if self._browser_error is not None:
+            self._browser_status_text.set(self._browser_error)
             return
         self._browser_status_text.set(
             format_browser_bridge(
@@ -1020,9 +1075,14 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
     voice: VoiceController | None = None
     browser_runtime: BrowserRuntime | None = None
     hotkeys: GlobalHotkeys | None = None
+    logger = None
     try:
         logger = configure_logging()
-        from desktop_agent.cli import build_executor, build_interpreter
+        from desktop_agent.cli import (
+            build_executor,
+            build_interpreter,
+            build_spotify_controller,
+        )
 
         source = os.environ if environ is None else environ
         startup_warnings = [settings_warning] if settings_warning else []
@@ -1033,6 +1093,7 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
                 loaded_voice_config if loaded_voice_config.enabled else None
             )
         except VoiceTranscriptionConfigurationError:
+            emit_failure(logger, "voice_provider_setup", "startup", stage="settings")
             startup_warnings.append(
                 "Configuración de voz externa inválida; la voz queda deshabilitada.",
             )
@@ -1043,14 +1104,21 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
         try:
             initial_usage = usage_ledger.current_snapshot()
         except UsageLedgerError:
+            emit_failure(logger, "usage_tracking_error", "startup", stage="settings")
             initial_usage = None
 
         browser_runtime = BrowserRuntime()
         browser_runtime.start()
+        spotify_controller = build_spotify_controller(
+            settings,
+            settings_store,
+            logger,
+        )
         executor, playback_controller = build_executor(
             logger,
             browser_preferences=browser_runtime.preferences,
             browser_bridge=browser_runtime.bridge,
+            spotify_controller=spotify_controller,
         )
         interpreter = build_interpreter(
             source,
@@ -1086,15 +1154,22 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
         root = tk.Tk()
         app = TkDesktopAgentApp(root, service, voice, browser_runtime,
             settings=settings, settings_store=settings_store, recorder=recorder,
-            hotkeys=hotkeys, settings_warning="\n".join(startup_warnings) or None)
+            hotkeys=hotkeys, settings_warning="\n".join(startup_warnings) or None,
+            diagnostics=history_handler(logger), diagnostic_logger=logger)
+        def report_callback_failure(*_):
+            emit_failure(logger, "gui_callback", "gui", stage="callback")
+            app._append("Falló un evento de interfaz. Revisá Historial de errores.")
+        root.report_callback_exception = report_callback_failure
         root.mainloop()
         voice_closed = _close_optional_voice(voice, timeout=2.0)
         service_closed = service.close(timeout=10.0)
         if voice_closed and service_closed and app.next_settings is not None:
             restart.append(app.next_settings)
         return 0 if voice_closed and service_closed else 1
-    except (OSError, tk.TclError) as error:
-        print(f"No se pudo iniciar la interfaz: {error}", file=sys.stderr)
+    except (OSError, tk.TclError):
+        if logger is not None:
+            emit_failure(logger, "startup_failed", "startup", stage="startup")
+        print("No se pudo iniciar la interfaz; revisá el historial y la instalación local.", file=sys.stderr)
         return 1
     finally:
         if hotkeys is not None:

@@ -4,16 +4,17 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.17 — Asistente configurado para uso cotidiano**.
-Agrega configuración persistente, clave opcionalmente cifrada por Windows, selección
-de micrófono, medidor de entrada, finalización manual de la frase y atajos globales
-opt-in. Corrige la interpretación de YouTube, el silencio de pestañas, la aplicación
-de preferencias de navegador, la cancelación tardía y el lanzamiento de League mediante
-Riot Client. Conserva el tope predeterminado de **USD 1 al mes**.
+La versión ejecutable actual es **v0.18 — Control oficial de Spotify**. Conserva la
+configuración cotidiana de v0.17 y agrega OAuth PKCE, refresh token cifrado, selección
+segura de dispositivo y herramientas verificadas para buscar o reproducir canciones
+y playlists, pausar, reanudar, avanzar, retroceder y ajustar el volumen de Spotify.
+Conserva el tope predeterminado de **USD 1 al mes** para llamadas de IA; la Web API de
+Spotify no usa ese presupuesto.
 
 No es todavía un agente universal: abre el catálogo de aplicaciones, automatiza
-YouTube y acepta interpretación libre hacia esas herramientas. No controla el interior
-de juegos, playlists de Spotify, archivos personales ni volumen de Windows. Los módulos
+YouTube, controla Spotify mediante su API y acepta interpretación libre hacia esas
+herramientas. No controla el interior de juegos, archivos personales ni volumen de
+Windows. Los módulos
 de visión, recetas y control remoto siguen teniendo demostraciones acotadas, no un
 asistente autónomo general. No incluye app móvil ni relay desplegado.
 
@@ -30,6 +31,14 @@ asistente autónomo general. No incluye app móvil ni relay desplegado.
 5. Para YouTube en tu sesión, elegí Chrome u Opera GX y marcá la pestaña gestionada.
    La elección se guarda inmediatamente. Si estaba cerrado, el agente intenta abrir
    sólo ese navegador y espera hasta 5 s por la extensión. No cambia a Chromium si falla.
+6. Para Spotify, creá una aplicación en el
+   [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), agregá
+   exactamente `http://127.0.0.1:43817/callback` como Redirect URI y copiá el Client ID
+   en **Configuración**. Activá Spotify. La primera orden abre el consentimiento; las
+   siguientes renuevan la sesión automáticamente. Los controles oficiales requieren
+   una cuenta Spotify Premium. En Development Mode, el propietario debe ser Premium;
+   cualquier otra cuenta de prueba debe estar en **Settings → Users Management** de
+   esa aplicación.
 
 Después de actualizar el código de una extensión ya instalada, recargá **Desktop Agent
 Browser Bridge** en `chrome://extensions` y comprobá “Sesión web: conectada”. El host
@@ -37,7 +46,14 @@ local se inspecciona sin modificarlo con `python -m scripts.browser15_bridge_set
 La extensión controla su propia pestaña, no cualquier pestaña que estés usando.
 
 La guía de cambios, pruebas pendientes y diagnóstico está en
-[docs/V0.17_ARCHITECTURE.md](docs/V0.17_ARCHITECTURE.md).
+[docs/V0.18_ARCHITECTURE.md](docs/V0.18_ARCHITECTURE.md).
+
+El mantenimiento de v0.17 agrega **Historial de errores** persistente en la GUI y
+consulta local con `python -m desktop_agent --errors`. Conserva hasta 500 incidentes
+sin órdenes, audio ni claves. Incluye correcciones de preferencias y recuperación
+tras una parada fallida. La pausa vuelve a consultar la pestaña gestionada si el
+usuario reanuda el video manualmente. La prueba real de YouTube sigue pendiente;
+[estado y checklist](docs/ERROR_HISTORY.md) distinguen evidencia de hipótesis.
 
 Para continuar el desarrollo con Sol u otro asistente, usar la
 [guía maestra de continuidad](docs/MASTER_GUIDE.md), enlazada desde `AGENTS.md`.
@@ -72,13 +88,36 @@ También se aceptan variantes deterministas como `abrí VS Code` y
 `abrir Visual Studio Code`. Una instrucción desconocida solo puede usar el fallback
 externo si se habilitó expresamente; en otro caso se rechaza sin ejecutar acciones.
 
-Reproducir y detener YouTube:
+Buscar, pausar y reanudar YouTube:
 
 ```text
 poné en youtube qué tan malo puedo ser
 pone lofi hip hop en youtube
 detener youtube
+pausá lo que estaba sonando en youtube
+poné pausa al video que estoy mirando en youtube
+reproducí lo que estaba mirando en youtube
+reanudá el video de youtube
 ```
+
+Buscar y controlar Spotify:
+
+```text
+poné la canción As It Was en spotify
+poné mi playlist 7W7 en spotify
+buscá la canción As It Was en spotify
+pausá spotify
+seguí reproduciendo spotify
+siguiente canción en spotify
+volvé a la canción anterior en spotify
+poné el volumen de spotify al 35 %
+```
+
+`buscá` abre una búsqueda visible en Spotify sin reproducirla e informa el primer
+resultado de catálogo. Primero intenta el protocolo de la app y, si Windows no lo
+ofrece, abre Spotify Web. `poné` reproduce el resultado.
+Si hay varias computadoras Spotify disponibles, configurá el nombre exacto del
+dispositivo; el agente no elige silenciosamente un teléfono ni una computadora ambigua.
 
 Ejecutar entre dos y cinco acciones conocidas como un único plan:
 
@@ -102,7 +141,8 @@ Usuario
        ├── open_url con preferencia local
        ├── open_application
        ├── play_youtube
-       └── stop_youtube
+       ├── stop_youtube / resume_youtube
+       └── herramientas Spotify -> OAuth PKCE -> Spotify Web API
   -> sistema operativo, Chromium aislado o pestaña gestionada por extensión local
 ```
 
@@ -311,7 +351,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.17.0 — escribí 'salir' para terminar.
+Desktop Agent v0.18.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -449,6 +489,15 @@ Para terminar el modo interactivo:
 | `abrir god of war ragnarok` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `poné en youtube <consulta>` | `BROWSER_NAVIGATION` | `play_youtube` | `SAFE` |
 | `detener youtube` | `BROWSER_NAVIGATION` | `stop_youtube` | `SAFE` |
+| `reanudá el video de youtube` | `BROWSER_NAVIGATION` | `resume_youtube` | `SAFE` |
+| `poné <canción> en spotify` | `MEDIA_PLAYBACK` | `play_spotify_track` | `SAFE` |
+| `poné mi playlist <nombre> en spotify` | `MEDIA_PLAYBACK` | `play_spotify_playlist` | `SAFE` |
+| `buscá <canción> en spotify` | `MEDIA_PLAYBACK` | `search_spotify_track` | `SAFE` |
+| `pausá spotify` | `MEDIA_PLAYBACK` | `pause_spotify` | `SAFE` |
+| `seguí reproduciendo spotify` | `MEDIA_PLAYBACK` | `resume_spotify` | `SAFE` |
+| `siguiente canción en spotify` | `MEDIA_PLAYBACK` | `next_spotify` | `SAFE` |
+| `canción anterior en spotify` | `MEDIA_PLAYBACK` | `previous_spotify` | `SAFE` |
+| `poné el volumen de spotify al 35 %` | `MEDIA_PLAYBACK` | `set_spotify_volume` | `SAFE` |
 
 ## Pruebas
 
@@ -466,11 +515,17 @@ Para la aceptación de v0.17 y los tests del worker real de la extensión:
 
 ```powershell
 python -m scripts.polish17_qa_check
+python -m scripts.spotify18_qa_check
 node --test tests/browser_extension.test.cjs
 ```
 
 Node sólo se usa para esos tests sin red, no es una dependencia de producción.
-Resultados y límites de la última auditoría: [v0.17](docs/V0.17_ARCHITECTURE.md).
+Estado de v0.18: **127 pruebas específicas, 524 Python y 13 JS aprobadas**. La
+aceptación real de autorización persistente, playlist, canción, pausa, reanudación,
+siguiente, anterior y volumen se completó el 2026-09-16; la audibilidad y la vista
+abierta siguen dependiendo de observación humana.
+Auditoría inicial: [v0.17](docs/V0.17_ARCHITECTURE.md). Mantenimiento del 2026-09-14:
+**489 Python + 13 JS aprobados**; [resultados y límites](docs/ERROR_HISTORY.md).
 
 La aceptación simulada de v0.15 no abre navegador ni modifica el registro:
 
@@ -547,7 +602,9 @@ Cobertura funcional actual:
 
 ## Logging
 
-La aplicación crea `logs/agent.log` al ejecutarse:
+La aplicación crea `%LOCALAPPDATA%\DesktopAgent\agent.log` al ejecutarse (fallback
+`~/.desktop_agent/agent.log`). Rota a los 2 MB y conserva dos respaldos. Los logs
+antiguos en `logs/` no se borran ni se importan automáticamente. Ejemplo:
 
 ```text
 [15:32:01] Command received
@@ -562,6 +619,22 @@ Los logs locales están excluidos de Git. La observabilidad de interpretación n
 registra el texto de la orden, la respuesta completa, la credencial ni contenido del
 escritorio. Los nombres de aplicación y URLs que aparecen después provienen del
 catálogo local permitido.
+
+### Historial de errores
+
+El botón **Historial de errores** muestra incidentes persistentes con código, etapa,
+fecha y una comprobación sugerida. La clasificación es preliminar, no un diagnóstico
+automático. Marcar como revisado no borra ni prueba que se haya corregido el fallo.
+
+```powershell
+python -m desktop_agent --errors        # pendientes, sólo lectura
+python -m desktop_agent --errors --all  # también revisados
+```
+
+Se conserva separado en `error_history.sqlite3`, junto al log, con los últimos 500
+incidentes. No contiene órdenes, URLs, transcripciones, audio, claves ni excepciones
+crudas. No usa IA ni envía datos. La GUI avisa si un incidente quedó sin guardar.
+Consultar [privacidad, cobertura y recuperación](docs/ERROR_HISTORY.md).
 
 ## Seguridad actual
 
@@ -712,6 +785,11 @@ tests/
   atajos opt-in, envío automático opcional y correcciones del recorrido de YouTube,
   cancelación y Riot Client. Implementación y pruebas locales completadas; voz real y
   recorrido completo con extensión siguen como checkpoint del usuario.
+- **v0.18 — Control oficial de Spotify:** implementación local completada con OAuth
+  PKCE, token renovable cifrado, dispositivo explícito, búsqueda/reproducción y
+  controles verificados. La aceptación real quedó aprobada con la cuenta y el
+  dispositivo del usuario; las pruebas automatizadas continúan sin realizar red ni
+  abrir Spotify.
 
 ## Autoría y componentes externos
 
@@ -738,6 +816,7 @@ Construido en el proyecto:
 - preferencias de navegador, puente local autenticado, host nativo y extensión
   Manifest V3 acotada;
 - catálogo ampliado y verificación local acotada de procesos iniciados;
+- cliente acotado de Spotify Web API, OAuth PKCE y controles con verificación;
 - configuración persistente y coordinación de atajos globales opt-in;
 - cliente de relay HTTPS exclusivamente saliente;
 - CLI, logging, manejo de errores y pruebas.

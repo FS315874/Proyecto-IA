@@ -18,6 +18,7 @@ from desktop_agent.command_processor import (
 )
 from desktop_agent.interpretation import MonthlyUsageSnapshot
 from desktop_agent.models import ToolResult
+from desktop_agent.diagnostics import emit_failure
 
 MAX_LOCAL_COMMAND_LENGTH = 500
 
@@ -338,6 +339,7 @@ class LocalAgentController:
                 execution = self._processor.execute(request.command, **options)
             except Exception:
                 self._logger.error("Controller status: ERROR reason=internal_failure")
+                emit_failure(self._logger, "controller_internal", "controller", stage="executing")
                 total_ms = max(
                     0.0, (self._clock() - request.submitted_at) * 1_000
                 )
@@ -385,9 +387,13 @@ class LocalAgentController:
         if not self._playback_controller.has_active_session:
             return ToolResult(True, "No había una reproducción activa.")
         try:
-            return self._playback_controller.stop()
+            result = self._playback_controller.stop()
+            if not result.success:
+                emit_failure(self._logger, result.error_code or "browser_stop_failed", "controller", stage="stop", tool="stop_youtube")
+            return result
         except Exception:
             self._logger.error("Controller stop status: ERROR reason=internal_failure")
+            emit_failure(self._logger, "browser_stop_failed", "controller", stage="stop", tool="stop_youtube")
             return ToolResult(False, "No se pudo detener la reproducción activa.")
 
     def _emit_state(

@@ -1,6 +1,6 @@
 # Guía maestra de continuidad — Desktop Agent
 
-Revisión: 2026-09-11. Preparada con asistencia de Astra para continuar con Sol u otro
+Revisión: 2026-09-14. Preparada con asistencia de Astra para continuar con Sol u otro
 asistente. Es contexto operativo del proyecto, no entrenamiento del modelo, una
 garantía de resultados ni autorización para ejecutar todo el backlog.
 
@@ -47,44 +47,47 @@ Los módulos experimentales actuales no equivalen a resolver cualquier app desco
 Este bloque es una fotografía, no un estado en vivo. Actualizarlo después de un hito
 autorizado; comprobar primero `git status`, versión y archivos afectados.
 
-- Versión local: **0.17.0**, coincidente en `pyproject.toml`, paquete y extensión.
+- Versión local: **0.18.0**, coincidente en `pyproject.toml`, paquete y extensión.
 - Rama observada al preparar la guía: `feature/mvp-0.15`; su nombre quedó histórico
   y no indica la versión ejecutable. Verificar rama y remoto antes de publicar.
-- Estado: implementación y pruebas automatizadas de v0.17 realizadas; aceptación
-  personal **POLISH-08 pendiente**. No llamar a esto aceptación completa ni release
-  estable por el solo hecho de hacer commit/push.
-- Evidencia registrada en la auditoría anterior: **439 tests Python y 9 JS aprobados**;
-  `polish17_qa_check` ejecuta 119 de esos tests, no otros 119 adicionales.
-- No hubo llamadas reales a OpenAI ni captura real de voz durante esa auditoría.
-  Los tests no prueban calidad de transcripción, audio audible ni juego listo.
+- Estado: v0.18 implementada y aceptación personal **SPOTIFY-18-08 completada** el
+  2026-09-16. `POLISH-08` de v0.17 conserva verificaciones reales pendientes. No
+  llamar a esto release estable sólo por un commit/push.
+- Validación vigente de v0.18: **127 pruebas específicas, 524 Python y 13 JS
+  aprobadas**. La suite simulada no usa red externa; la aceptación real comprobó la
+  cuenta, persistencia de autorización, dispositivo y controles de reproducción.
+- Mantenimiento autorizado: historial de errores persistente, preferencia efectiva
+  visible y recuperación honesta tras parada fallida. **489 tests Python y 13 JS
+  aprobados** el 2026-09-14. La auditoría inicial (439/9) es histórica; los runners
+  seleccionan subconjuntos, no tests adicionales.
+- Al retomar desarrollo, ejecutar primero **`python -m desktop_agent --errors`**:
+  consulta sólo lectura, sin navegador/API. Leer `--all` sólo si hace falta revisar
+  incidentes anteriores. Categoría preliminar no prueba culpa de entorno/producto.
+- La última prueba personal aprobó transcripción y aperturas habituales. YouTube
+  falló: una búsqueda dejó una limpieza sin confirmar y una orden no pausó el video
+  reanudado manualmente. Luego se observó que ciertas frases de pausa/reanudación se
+  convertían en búsquedas; ahora `PLAY_YOUTUBE`, `STOP_YOUTUBE` y `RESUME_YOUTUBE`
+  son acciones separadas. Falta reiniciar la app y hacer el retest real. Detalle en
+  [ERROR_HISTORY.md](ERROR_HISTORY.md).
+- La prueba real de Spotify reprodujo playlist y canción, pausó, reanudó, avanzó,
+  retrocedió y ajustó volumen. Corrigió falsos fallos causados por cuerpos no JSON en
+  respuestas exitosas. El usuario ya había confirmado audio audible; el contenido de
+  una búsqueda abierta requiere observación visual. Esto no reemplaza los checkpoints
+  reales pendientes de voz, YouTube o juegos.
 - Datos/clave/consumo quedan fuera del repositorio. No leer sus valores para recuperar
-  contexto. La GUI conserva preferencias; la clave sólo persiste con Recordar opt-in.
+  contexto. La GUI conserva preferencias; la clave OpenAI sólo persiste con Recordar
+  opt-in y el refresh token de Spotify siempre queda cifrado con DPAPI.
 - Proveedores configurados en código: `gpt-5.6-luna` para interpretar y `gpt-transcribe`
   para transcribir. Tope inicial compartido de la app: **USD 1/mes**, modificable por
   el usuario. No aumentar el tope ni migrar modelos como efecto de esta guía.
 
-### Próximo paso concreto: cerrar POLISH-08
+### Próximo paso concreto: retomar POLISH-08
 
-Guiar pruebas cortas, una por vez, con el usuario presente. Pedir autorización exacta
-antes de activar micrófono, enviar audio o hacer otras acciones externas cuando falte.
-
-1. Abrir v0.17 y revisar configuración desde la GUI sin mostrar la clave. Elegir el
-   HyperX físico, si sigue disponible, y comprobar el medidor durante una captura.
-2. Transcribir tres frases diferentes en modo revisión: apertura sencilla, música
-   y una frase libre. Confirmar texto fiel, no sólo acierto de una frase conocida.
-   Cancelar una captura y comprobar que nunca se envía después.
-3. Probar Ctrl+Alt+Espacio desde otra aplicación, finalización de frase y
-   Ctrl+Alt+Esc. Verificar que al cerrar se liberan los atajos. Envío automático
-   permanece opcional; no activarlo sin elección del usuario.
-4. Recargar la extensión instalada, comprobar conexión y reproducir dos canciones
-   consecutivas en el navegador elegido. Verificar misma pestaña gestionada, audio
-   audible, avance del video y pausa sin cerrar. No afirmar éxito sólo por `/watch`.
-5. Probar las aperturas habituales. Para League, Riot Client abierto no demuestra
-   que League esté listo; login/actualizaciones quedan bajo control del usuario.
-
-Si aparece un fallo, fijar una reproducción y corregir esa capa antes de ampliar
-funciones. Registrar resultado por recorrido: aprobado, falló, no probado o bloqueado.
-Detalles y evidencia: [auditoría v0.17](V0.17_ARCHITECTURE.md).
+Spotify queda cerrado para el alcance de v0.18. Al retomar, ejecutar primero
+`python -m desktop_agent --errors`, recargar la extensión instalada y completar el
+recorrido real pendiente de YouTube, voz, cancelación/atajos y aperturas visibles.
+No ampliar el catálogo hasta fijar y reproducir cualquier incidente pendiente.
+Detalles de Spotify y evidencia: [arquitectura v0.18](V0.18_ARCHITECTURE.md).
 
 ## 3. Contrato de trabajo por pedido
 
@@ -129,6 +132,7 @@ con su primera ruta. Abrir implementación y tests vecinos, no todo el árbol.
 | Extensión | `browser_extension/service_worker.js`, `manifest.json` | `tests/browser_extension.test.cjs`, `test_browser_extension_manifest.py` |
 | Apps | `desktop_agent/catalog.py`, `tools/applications.py` | `tests/test_application_tool.py` |
 | Consumo | `desktop_agent/usage_budget.py`, `budgeted_provider.py`, `provider_config.py`, `voice_transcription_config.py` | `tests/test_usage_budget.py`, `test_openai_voice.py`, `test_provider_config.py` |
+| Incidentes locales | `desktop_agent/diagnostics.py`, `error_history.py`, `error_history_dialog.py`, `logging_config.py` | `tests/test_error_history.py`, `test_diagnostic_workflows.py`, `test_logging_config.py`, `test_tk_workflows.py` |
 
 Visión, entradas nativas, bucles, recetas y remoto tienen documentación por versión
 en `docs/V0.6_ARCHITECTURE.md` hasta `V0.14_ARCHITECTURE.md`. Consultarla sólo si esa
@@ -166,9 +170,22 @@ Después de editar el worker hay que recargar la extensión instalada. Hay una
 regresión para Chrome sin ventana normal/selector de perfiles, pero su aceptación
 real sigue pendiente. No elegir otro perfil ni cambiar configuraciones para sortearla.
 
-Éxito de música exige URL adecuada, reproducción, avance de tiempo, reproductor y
+Éxito de música en YouTube exige URL adecuada, reproducción, avance de tiempo, reproductor y
 pestaña no silenciados. Aun así, el volumen físico/salida de Windows necesita evidencia
 adicional. Spotify web abierto no significa playlist reproducida.
+
+### Spotify: API oficial; búsqueda con apertura visual acotada
+
+Spotify usa OAuth PKCE y Web API. El Client ID es configuración; access/refresh tokens
+son secretos y no deben copiarse al chat o logs. El access token queda en memoria y el
+refresh token cifrado con DPAPI. Para iniciar contenido, elegir sólo el dispositivo
+configurado o una única computadora; no usar un teléfono ni adivinar entre varios.
+Verificar estado posterior: `is_playing`, canción/contexto, dispositivo o volumen. Los
+comandos aceptan sólo `200`, `202` o `204` y descartan su cuerpo; ninguno prueba éxito
+sin esa lectura posterior. Una búsqueda usa un URI `spotify:search:` construido y
+codificado localmente, con Spotify Web como fallback; no controla el DOM del cliente.
+Premium, permisos, rate limits y catálogo pertenecen a Spotify. Ante 401 se permite
+una renovación y un reintento; no repetir otros fallos.
 
 ### Aplicaciones y latencia
 
@@ -193,6 +210,7 @@ Comandos desde la raíz con el Python del entorno verificado:
 ```powershell
 python -m unittest tests.test_parser tests.test_interpretation -q
 python -m scripts.polish17_qa_check
+python -m scripts.spotify18_qa_check
 python -m unittest discover -s tests -q
 node --test tests/browser_extension.test.cjs
 git diff --check
@@ -229,12 +247,10 @@ principal**, no anunciar nuevas versiones sólo porque aparecen en esta lista:
    explícita, existencia y apertura verificables; sin indexar todo el disco.
 2. Volumen por dispositivo: resolver auriculares inequívocos, leer valor actual,
    establecer porcentaje validado y verificar lectura; considerar VoiceMeeter.
-3. Playlist de Spotify: aclarar cuenta, playlist exacta y mecanismo permitido;
-   investigar integración oficial, permisos y requisitos antes de diseñar o instalar.
-4. Respuesta hablada y móvil: diseñar cada capacidad por separado con costo,
+3. Respuesta hablada y móvil: diseñar cada capacidad por separado con costo,
    privacidad, autenticación y cancelación. El remoto acotado existente no es una
    app móvil desplegada.
-5. Pruebas de apps propias/control adaptativo: sólo entornos de prueba y datos
+4. Pruebas de apps propias/control adaptativo: sólo entornos de prueba y datos
    ficticios, observación autorizada, herramientas limitadas y parada comprobada.
 
 Orden orientativo por utilidad y riesgo, no compromiso ni autorización. Para cada

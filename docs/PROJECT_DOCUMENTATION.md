@@ -287,7 +287,8 @@ soportado.
 
 ## 11. Logging
 
-El archivo `logs/agent.log` registra:
+El archivo `%LOCALAPPDATA%\DesktopAgent\agent.log` (fallback
+`~/.desktop_agent/agent.log`) registra:
 
 - recepción de una instrucción, sin guardar su texto;
 - camino determinista o externo, estado y duración de interpretación;
@@ -299,13 +300,20 @@ El archivo `logs/agent.log` registra:
 - URL o identificador de aplicación;
 - herramienta ejecutada;
 - estado final;
-- traceback para excepciones inesperadas.
+- códigos seguros para errores inesperados, sin excepción cruda.
 
 La metadata de interpretación no conserva el prompt, la respuesta completa, la clave
 ni contexto del escritorio. Los contadores de uso se validan como enteros no
 negativos; si están ausentes o son incoherentes, se omiten. Las URLs e identificadores
 registrados después de construir la acción provienen del catálogo local. Los logs se
 excluyen del repositorio.
+
+Desde el mantenimiento del 2026-09-13, el log rota a los 2 MB con dos respaldos; no
+se borran ni migran los logs históricos de `logs/`. Los incidentes estructurados se
+guardan aparte en `error_history.sqlite3`, sin copiar el mensaje del logger. Hay
+retención de 500 registros, revisión explícita en GUI y consulta de sólo lectura
+`python -m desktop_agent --errors [--all]`. No guarda órdenes, audio, URLs ni claves,
+ni realiza análisis externo. Diseño, cobertura y límites: [ERROR_HISTORY.md](ERROR_HISTORY.md).
 
 El historial mensual se guarda separado del log en
 `%LOCALAPPDATA%\DesktopAgent\ai_usage.json`, con fallback a
@@ -348,6 +356,17 @@ subconjuntos de la suite. El runner manual de WEB-07 es independiente y requiere
 autorización porque abre Chromium visible y usa red. Los resultados y límites de
 validación están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); la aceptación
 personal de voz y extensión sigue pendiente.
+
+La regresión de mantenimiento del 2026-09-14 aprobó **489 tests Python y 13 JS**.
+Se corrigieron la limpieza sin reproductor y la pausa de un video reanudado a mano;
+la prueba real anterior falló y la corrección todavía requiere recargar la extensión
+y repetirse. No equivale a una aceptación completa. Evidencia posterior y próximo
+diagnóstico en [ERROR_HISTORY.md](ERROR_HISTORY.md).
+
+Los controles del reproductor son distintos de una búsqueda: `play_youtube` recibe
+una consulta nueva, `stop_youtube` pausa el video actual y `resume_youtube` reanuda el
+actual sin aceptar un destino generado por el modelo. La reanudación sólo actúa sobre
+la sesión ya poseída o la pestaña gestionada y verifica identidad, audio y progreso.
 
 ## 13. Evolución por versiones
 
@@ -484,6 +503,7 @@ para saltar versiones o decisiones del usuario.
 | v0.15 | Navegador habitual y Spotify | Implementada; extensión instalada y conectada, recorrido completo pendiente |
 | v0.16 | Aplicaciones locales habituales | Implementada; prueba visible pendiente |
 | v0.17 | Uso cotidiano y auditoría | Implementada y testeada localmente; aceptación personal pendiente |
+| v0.18 | Control oficial de Spotify | Completada; QA simulado y aceptación real aprobados |
 
 El roadmap es una orientación, no un compromiso de implementar módulos antes de
 que la versión anterior sea estable.
@@ -1148,3 +1168,41 @@ La continuidad con Sol u otro asistente se organiza desde
 [MASTER_GUIDE.md](MASTER_GUIDE.md), referenciada por `AGENTS.md`. Esa guía conserva
 el punto de reanudación, mapa de código y criterios de diagnóstico; no sustituye la
 evidencia del repositorio ni autoriza ampliar el alcance.
+
+## 34. Estado de implementación de v0.18
+
+v0.18 incorpora Spotify como una integración oficial y separada de la automatización
+de navegador. El modelo o parser sólo elige un intent cerrado; `SpotifyPlaybackTool`
+usa endpoints fijos, datos validados y `ActionExecutor`. Buscar, reproducir una canción,
+reproducir una playlist, pausar, reanudar, avanzar, retroceder y cambiar volumen son
+acciones diferentes. Un control de reproducción no puede convertirse en consulta.
+
+La conexión usa Authorization Code con PKCE y callback loopback. No existe client
+secret en la aplicación. El access token vive en memoria; el refresh token se guarda
+cifrado con DPAPI, puede quitarse desde Configuración y nunca se incluye en logs,
+errores o `repr`. El archivo de configuración migra de esquema 1 a esquema 2 sin
+activar Spotify automáticamente.
+
+La herramienta inicia contenido únicamente en el dispositivo configurado o en una
+única computadora Spotify disponible. No adopta un teléfono como fallback ni elige
+entre varias computadoras. Cada cambio consulta luego el estado adecuado; una respuesta
+HTTP `200`, `202` o `204` aislada no se considera evidencia suficiente. Los cuerpos de
+esos comandos se descartan porque la API real puede devolver texto no JSON incluso
+después de ejecutar el efecto. Los saltos comparan pista y posición antes/después.
+
+Buscar abre una vista de Spotify sin iniciar reproducción: intenta un URI
+`spotify:search:` normalizado/codificado y usa Spotify Web como fallback. El texto de
+la consulta nunca se ejecuta como shell ni se registra.
+
+Spotify Web API, OAuth y el catálogo musical son capacidades de Spotify, no código
+propio del proyecto. Los endpoints de control requieren actualmente Premium y están
+sujetos a sus permisos, límites y disponibilidad. El proyecto aporta contrato,
+validación, persistencia local protegida, selección, orquestación, errores y pruebas.
+
+El runner `python -m scripts.spotify18_qa_check` usa dobles para autorización, red,
+cuenta, dispositivo y reproductor. No consume OpenAI, no llama Spotify y no abre el
+cliente real. Al cierre aprobaron 127 pruebas específicas, 524 pruebas Python
+completas y 13 pruebas JavaScript de la extensión. La aceptación del 2026-09-16
+comprobó OAuth persistente, playlist/canción, pausa, reanudación, saltos y volumen en
+el dispositivo real. El diseño, checklist y límites completos están en
+[V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md).

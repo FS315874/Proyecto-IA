@@ -1,8 +1,10 @@
 import logging
+import time
 from collections.abc import Callable, Mapping
 from typing import Protocol, runtime_checkable
 
 from desktop_agent.models import Action, RiskLevel, ToolResult
+from desktop_agent.diagnostics import emit_failure
 
 Tool = Callable[..., ToolResult]
 
@@ -78,7 +80,12 @@ class ActionExecutor:
         action: Action,
         authorization: object | None = None,
     ) -> ToolResult:
-        self.validate(action, authorization)
+        started = time.monotonic()
+        try:
+            self.validate(action, authorization)
+        except ActionExecutionError:
+            emit_failure(self._logger, "action_rejected", "executor", stage="validating")
+            raise
         tool = self._tools[action.tool_name]
 
         if action.risk_level is not RiskLevel.SAFE:
@@ -87,6 +94,7 @@ class ActionExecutor:
             try:
                 self._authorization_validator.consume(action, authorization)
             except Exception as error:
+                emit_failure(self._logger, "action_rejected", "executor", stage="validating", tool=action.tool_name)
                 raise ActionExecutionError(
                     "La autorización ya no es válida."
                 ) from error
@@ -95,6 +103,8 @@ class ActionExecutor:
         try:
             result = tool(**action.arguments)
         except Exception as error:
+            emit_failure(self._logger, "tool_exception", "executor", stage="executing",
+                         tool=action.tool_name, duration_ms=(time.monotonic() - started) * 1000)
             self._logger.error(
                 "Status: ERROR tool=%s error=tool_failure",
                 action.tool_name,
@@ -104,6 +114,8 @@ class ActionExecutor:
             ) from error
 
         if not isinstance(result, ToolResult):
+            emit_failure(self._logger, "invalid_tool_result", "executor", stage="executing",
+                         tool=action.tool_name, duration_ms=(time.monotonic() - started) * 1000)
             self._logger.error(
                 "Status: ERROR tool=%s error=invalid_tool_result",
                 action.tool_name,
@@ -115,6 +127,9 @@ class ActionExecutor:
         status = "SUCCESS" if result.success else "ERROR"
         self._logger.info("Status: %s", status)
         if not result.success:
+            emit_failure(self._logger, result.error_code or "tool_failed", "executor",
+                         stage=result.error_stage or "executing", tool=action.tool_name,
+                         duration_ms=(time.monotonic() - started) * 1000)
             raise ActionExecutionError(result.message)
 
         return result

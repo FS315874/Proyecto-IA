@@ -94,6 +94,7 @@ class PlanProposalTests(unittest.TestCase):
                     },
                     {"intent": "PLAY_YOUTUBE", "target": "  lofi   hip hop "},
                     {"intent": "STOP_YOUTUBE", "target": None},
+                    {"intent": "RESUME_YOUTUBE", "target": None},
                 ],
             },
             plan_id_factory=lambda: "plan-fixed",
@@ -102,9 +103,57 @@ class PlanProposalTests(unittest.TestCase):
         self.assertEqual(plan.plan_id, "plan-fixed")
         self.assertEqual(
             [step.action.tool_name for step in plan.steps],
-            ["open_url", "open_application", "play_youtube", "stop_youtube"],
+            [
+                "open_url",
+                "open_application",
+                "play_youtube",
+                "stop_youtube",
+                "resume_youtube",
+            ],
         )
         self.assertEqual(plan.steps[2].action.arguments["query"], "lofi hip hop")
+
+    def test_builds_spotify_steps_without_turning_controls_into_searches(self) -> None:
+        plan = validate_plan_proposal(
+            {
+                "schema_version": 1,
+                "steps": [
+                    {"intent": "PLAY_SPOTIFY_TRACK", "target": "Song"},
+                    {"intent": "PLAY_SPOTIFY_PLAYLIST", "target": "7W7"},
+                    {"intent": "PAUSE_SPOTIFY", "target": None},
+                    {"intent": "RESUME_SPOTIFY", "target": None},
+                    {"intent": "SET_SPOTIFY_VOLUME", "target": "35"},
+                ],
+            }
+        )
+
+        self.assertEqual(
+            [step.action.tool_name for step in plan.steps],
+            [
+                "play_spotify_track",
+                "play_spotify_playlist",
+                "pause_spotify",
+                "resume_spotify",
+                "set_spotify_volume",
+            ],
+        )
+        self.assertEqual(plan.steps[-1].action.arguments, {"percent": "35"})
+
+    def test_deterministic_spotify_plan_is_validated_end_to_end(self) -> None:
+        plan = parse_plan_command(
+            "Poné Song en Spotify; pausá Spotify; seguí reproduciendo Spotify",
+            plan_id_factory=lambda: "spotify-plan",
+        )
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        tools = {
+            "play_spotify_track": lambda query: ToolResult(True, query),
+            "pause_spotify": lambda: ToolResult(True, "paused"),
+            "resume_spotify": lambda: ToolResult(True, "resumed"),
+        }
+        executor = ActionExecutor(tools, logging.getLogger(self.id()))
+
+        TaskPlanValidator(executor).validate(plan)
 
     def test_rejects_extra_fields_unknown_targets_and_invalid_counts(self) -> None:
         invalid = [
@@ -126,6 +175,13 @@ class PlanProposalTests(unittest.TestCase):
                 "schema_version": 1,
                 "steps": [
                     {"intent": "STOP_YOUTUBE", "target": "youtube"},
+                    {"intent": "OPEN_URL", "target": "github"},
+                ],
+            },
+            {
+                "schema_version": 1,
+                "steps": [
+                    {"intent": "RESUME_YOUTUBE", "target": "youtube"},
                     {"intent": "OPEN_URL", "target": "github"},
                 ],
             },

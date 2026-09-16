@@ -33,6 +33,7 @@ class FakePlaybackController:
     def __init__(self) -> None:
         self.queries: list[str] = []
         self.stop_calls = 0
+        self.resume_calls = 0
         self.active = False
 
     @property
@@ -48,6 +49,48 @@ class FakePlaybackController:
         self.stop_calls += 1
         self.active = False
         return ToolResult(True, "Reproducción detenida.")
+
+    def resume(self) -> ToolResult:
+        self.resume_calls += 1
+        self.active = True
+        return ToolResult(True, "Reproducción reanudada.")
+
+
+class FakeSpotifyController:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def play_track(self, query):
+        self.calls.append(("track", query))
+        return ToolResult(True, "Canción reproducida.")
+
+    def play_playlist(self, name):
+        self.calls.append(("playlist", name))
+        return ToolResult(True, "Playlist reproducida.")
+
+    def search_track(self, query):
+        self.calls.append(("search", query))
+        return ToolResult(True, "Canción encontrada.")
+
+    def pause(self):
+        self.calls.append(("pause",))
+        return ToolResult(True, "Spotify pausado.")
+
+    def resume(self):
+        self.calls.append(("resume",))
+        return ToolResult(True, "Spotify reanudado.")
+
+    def next(self):
+        self.calls.append(("next",))
+        return ToolResult(True, "Siguiente.")
+
+    def previous(self):
+        self.calls.append(("previous",))
+        return ToolResult(True, "Anterior.")
+
+    def set_volume(self, percent):
+        self.calls.append(("volume", percent))
+        return ToolResult(True, "Volumen ajustado.")
 
 
 class FakeProposalProvider:
@@ -405,6 +448,12 @@ class V04CliIntegrationTests(unittest.TestCase):
         )
         self.assertIs(returned_controller, self.controller)
 
+    def test_default_executor_builds_without_starting_a_browser(self) -> None:
+        executor, controller = build_executor(self.logger)
+
+        self.assertIsInstance(executor, ActionExecutor)
+        self.assertFalse(controller.has_active_session)
+
     def test_registered_tools_play_and_stop_without_exposing_query_in_logs(
         self,
     ) -> None:
@@ -448,6 +497,55 @@ class V04CliIntegrationTests(unittest.TestCase):
         self.assertEqual(provider.commands, [])
         self.assertEqual(self.controller.queries, ["lofi hip hop"])
 
+    def test_resume_current_video_is_not_sent_as_a_search_query(self) -> None:
+        success = process_command(
+            "reproducí lo que estaba mirando en youtube",
+            self.executor,
+            self.logger,
+            output=lambda _: None,
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(self.controller.resume_calls, 1)
+        self.assertEqual(self.controller.queries, [])
+
+    def test_spotify_tools_are_registered_and_controls_do_not_search(self) -> None:
+        spotify = FakeSpotifyController()
+        executor, _ = build_executor(
+            self.logger,
+            self.controller,
+            spotify_controller=spotify,
+        )
+        commands = (
+            "Poné la canción Song en Spotify",
+            "Poné mi playlist 7W7 en Spotify",
+            "Buscá Song en Spotify",
+            "Pausá Spotify",
+            "Seguí reproduciendo Spotify",
+            "Siguiente canción en Spotify",
+            "Volvé a la canción anterior en Spotify",
+            "Poné el volumen de Spotify al 35 %",
+        )
+
+        for command in commands:
+            self.assertTrue(
+                process_command(command, executor, self.logger, output=lambda _: None)
+            )
+
+        self.assertEqual(
+            spotify.calls,
+            [
+                ("track", "Song"),
+                ("playlist", "7W7"),
+                ("search", "Song"),
+                ("pause",),
+                ("resume",),
+                ("next",),
+                ("previous",),
+                ("volume", "35"),
+            ],
+        )
+
     def test_one_shot_waits_for_enter_and_stops_active_playback(self) -> None:
         self.controller("lofi")
         output: list[str] = []
@@ -486,7 +584,7 @@ class V04CliIntegrationTests(unittest.TestCase):
         self.assertEqual(
             output,
             [
-                "Desktop Agent v0.17.0 — escribí 'salir' para terminar.",
+                "Desktop Agent v0.18.0 — escribí 'salir' para terminar.",
                 "Reproducción detenida.",
                 "Hasta luego.",
             ],

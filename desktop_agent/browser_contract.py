@@ -408,3 +408,10 @@ class BrowserAdapter(Protocol):
     def reset(self) -> BrowserStepResult: ...
 
     def close(self) -> BrowserStepResult: ...
+
+
+@runtime_checkable
+class ResumableBrowserAdapter(BrowserAdapter, Protocol):
+    """Adaptador que puede actuar sobre un video actual ya seleccionado."""
+
+    def resume_current_playback(self) -> BrowserStepResult: ...

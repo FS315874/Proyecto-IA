@@ -143,7 +143,21 @@ test("stop pauses without closing the user's tab", async () => {
   const h = harness();
   await h.send("open_site", { site_key: "youtube" });
   await h.send("youtube_start");
-  assert.equal((await h.send("youtube_stop")).paused, true);
+  const result = await h.send("youtube_stop");
+  assert.equal(result.paused, true);
+  assert.equal(result.media_present, true);
+  assert.equal(h.tabs.size, 1);
+});
+
+test("stop treats a managed YouTube page without a player as already stopped", async () => {
+  const h = harness();
+  await h.send("open_site", { site_key: "youtube" });
+  h.context.document.querySelector = () => null;
+
+  const result = await h.send("youtube_stop");
+
+  assert.equal(result.paused, true);
+  assert.equal(result.media_present, false);
   assert.equal(h.tabs.size, 1);
 });
 
@@ -169,6 +183,33 @@ test("native requests are serialized and errors disclose no arbitrary text", asy
   h.video.play = async () => { throw new Error("PRIVATE DETAILS secret"); };
   h.video.paused = true;
   await h.api.handleRequest(message("3", "youtube_start"));
+  assert.equal(h.responses.at(-1).error_code, "extension_failure");
+  assert.equal(h.responses.at(-1).success, false);
+});
+
+test("unrecognized search DOM is not misreported as an empty result set", async () => {
+  const h = harness();
+  let tick = 0;
+  h.context.Date = {now: () => (tick += 1000)};
+  h.context.document.querySelectorAll = () => [];
+  h.context.document.querySelector = () => null;
+  await assert.rejects(h.send("youtube_search", {query: "synthetic"}), /search_dom_unavailable/);
+});
+
+test("explicit empty-results marker remains a zero-result response", async () => {
+  const h = harness();
+  h.context.document.querySelectorAll = () => [];
+  h.context.document.querySelector = selector => selector === "ytd-background-promo-renderer" ? {} : null;
+  const result = await h.send("youtube_search", {query: "synthetic"});
+  assert.equal(result.result_count, 0);
+});
+
+test("unknown lowercase error messages are redacted too", async () => {
+  const h = harness();
+  // El error se crea dentro del mismo realm que el worker.
+  vm.runInContext('chrome.windows.getAll = async () => { throw new Error("synthetic_private_value"); };', h.context);
+  await h.api.handleRequest({schema_version: 1, type: "request", request_id: "safe-test",
+    operation: "open_site", arguments: {site_key: "youtube"}});
   assert.equal(h.responses.at(-1).error_code, "extension_failure");
   assert.equal(h.responses.at(-1).success, false);
 });

@@ -65,6 +65,13 @@ class OpenAIPlanProviderTests(unittest.TestCase):
         self.assertFalse(
             schema["properties"]["steps"]["items"]["additionalProperties"]
         )
+        self.assertIn(
+            "RESUME_YOUTUBE",
+            schema["properties"]["steps"]["items"]["properties"]["intent"][
+                "enum"
+            ],
+        )
+        self.assertIn("video actual", call["instructions"])
         self.assertNotIn("test-api-key", repr(call))
 
     def test_rejects_invalid_json_empty_input_and_incomplete_response(self) -> None:

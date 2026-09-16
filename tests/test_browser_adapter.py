@@ -247,6 +247,29 @@ class SafeBrowserAdapterTests(SafeBrowserTestSupport, unittest.TestCase):
         self.assertIn(("search", "lofi hip hop", 5.0), self.page.calls)
         self.assertNotIn("lofi hip hop", self.log_output.getvalue())
 
+    def test_resumes_current_video_only_in_a_managed_session(self) -> None:
+        adapter = self.adapter(
+            BrowserSecurityPolicy(
+                allow_extensions=True,
+                persistent_profile=True,
+            )
+        )
+
+        result = adapter.resume_current_playback()
+
+        self.assertIs(result.status, BrowserStepStatus.SUCCESS)
+        self.assertIs(adapter.state, BrowserSessionState.PLAYING)
+        self.assertEqual(self.page.calls, [("start_playback", 5.0)])
+
+    def test_fresh_isolated_session_cannot_resume_unknown_content(self) -> None:
+        adapter = self.adapter()
+
+        result = adapter.resume_current_playback()
+
+        self.assertIs(result.status, BrowserStepStatus.FAILURE)
+        self.assertIs(result.error.code, BrowserErrorCode.INVALID_STATE)
+        self.assertEqual(self.page.calls, [])
+
     def test_verifies_playback_identity_audio_and_progress(self) -> None:
         adapter = self.playing_adapter()
 
@@ -428,6 +451,17 @@ class SafeBrowserAdapterTests(SafeBrowserTestSupport, unittest.TestCase):
         self.assertEqual(self.close_order, ["context", "browser"])
         self.assertNotIn("private close detail", self.log_output.getvalue())
 
+    def test_partial_close_blocks_reset_and_retries_only_failed_resources(self):
+        self.browser.fail_on_close = True
+        adapter = self.adapter()
+        self.assertIs(adapter.close().status, BrowserStepStatus.FAILURE)
+        self.assertIs(adapter.state, BrowserSessionState.FAILED)
+        self.assertIs(adapter.reset().status, BrowserStepStatus.FAILURE)
+        self.browser.fail_on_close = False
+        self.assertIs(adapter.close().status, BrowserStepStatus.SUCCESS)
+        self.assertEqual(self.close_order, ["context", "browser", "browser"])
+        self.assertIs(adapter.state, BrowserSessionState.CLOSED)
+
 
 class BrowserNavigationToolTests(SafeBrowserTestSupport, unittest.TestCase):
     def tool(self) -> BrowserNavigationTool:
@@ -583,6 +617,82 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
 
         self.assertEqual(self.close_order, ["context", "browser"])
 
+    def test_explicit_stop_queries_managed_session_without_active_adapter(self) -> None:
+        from unittest.mock import Mock
+
+        managed_adapter = self.adapter()
+        managed_session_factory = Mock(return_value=managed_adapter)
+        tool = YouTubePlaybackTool(
+            self.adapter,
+            self.logger,
+            clock=lambda: 3.0,
+            managed_session_factory=managed_session_factory,
+        )
+
+        result = tool.stop()
+
+        self.assertTrue(result.success)
+        managed_session_factory.assert_called_once_with()
+        self.assertEqual(self.close_order, ["context", "browser"])
+        self.assertFalse(tool.has_active_session)
+
+    def test_resume_queries_and_verifies_the_managed_current_video(self) -> None:
+        from unittest.mock import Mock
+
+        managed_adapter = self.adapter(
+            BrowserSecurityPolicy(
+                allow_extensions=True,
+                persistent_profile=True,
+            )
+        )
+        managed_session_factory = Mock(return_value=managed_adapter)
+        tool = YouTubePlaybackTool(
+            self.adapter,
+            self.logger,
+            clock=lambda: 3.0,
+            managed_session_factory=managed_session_factory,
+        )
+
+        result = tool.resume()
+
+        self.assertTrue(result.success)
+        self.assertTrue(tool.has_active_session)
+        managed_session_factory.assert_called_once_with()
+        self.assertEqual(
+            [call[0] for call in self.page.calls],
+            ["start_playback", "read_playback", "read_playback"],
+        )
+        self.assertEqual(self.close_order, [])
+        self.assertTrue(tool.stop().success)
+
+    def test_failed_managed_stop_is_retained_for_an_explicit_retry(self) -> None:
+        from unittest.mock import Mock
+
+        managed_adapter = self.adapter()
+        managed_session_factory = Mock(return_value=managed_adapter)
+        tool = YouTubePlaybackTool(
+            self.adapter,
+            self.logger,
+            clock=lambda: 3.0,
+            managed_session_factory=managed_session_factory,
+        )
+        self.context.fail_on_close = True
+
+        first_result = tool.stop()
+
+        self.assertFalse(first_result.success)
+        self.assertTrue(tool.has_active_session)
+        managed_session_factory.assert_called_once_with()
+
+        self.context.fail_on_close = False
+        retry_result = tool.stop()
+
+        self.assertTrue(retry_result.success)
+        self.assertFalse(tool.has_active_session)
+        managed_session_factory.assert_called_once_with()
+        self.assertEqual(self.context.close_calls, 2)
+        self.assertEqual(self.browser.close_calls, 1)
+
     def test_reuses_same_adapter_for_consecutive_playback(self) -> None:
         factory_calls = 0
 
@@ -631,7 +741,7 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
         self.assertEqual(self.close_order, [])
         self.assertTrue(tool.stop().success)
 
-    def test_stop_reports_close_failure_without_leaking_session(self) -> None:
+    def test_stop_retains_failed_cleanup_until_explicit_retry(self) -> None:
         tool = self.tool()
         self.context.fail_on_close = True
 
@@ -639,8 +749,15 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
         result = tool.stop()
 
         self.assertFalse(result.success)
-        self.assertFalse(tool.has_active_session)
+        self.assertTrue(tool.has_active_session)
         self.assertEqual(self.close_order, ["context", "browser"])
+        self.assertFalse(tool("otra canción").success)
+        self.assertEqual(self.close_order, ["context", "browser"])
+        self.context.fail_on_close = False
+        self.assertTrue(tool.stop().success)
+        self.assertFalse(tool.has_active_session)
+        self.assertEqual(self.context.close_calls, 2)
+        self.assertEqual(self.browser.close_calls, 1)
 
     def test_stops_at_no_results_and_still_closes(self) -> None:
         self.page.result_count = 0
@@ -653,6 +770,40 @@ class YouTubePlaybackToolTests(SafeBrowserTestSupport, unittest.TestCase):
             ["open_site", "search"],
         )
         self.assertEqual(self.close_order, ["context", "browser"])
+
+    def test_failed_flow_keeps_unconfirmed_cleanup_and_blocks_new_factory(self):
+        from unittest.mock import Mock
+        self.page.result_count = 0
+        self.context.fail_on_close = True
+        factory = Mock(side_effect=self.adapter)
+        tool = self.tool(factory)
+        result = tool("synthetic music")
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_code, "browser_no_results")
+        self.assertIn("Tampoco se confirmó", result.message)
+        self.assertTrue(tool.has_active_session)
+        self.assertEqual(tool("another song").error_code, "browser_stop_failed")
+        self.assertEqual(factory.call_count, 1)
+        self.context.fail_on_close = False
+        self.assertTrue(tool.stop().success)
+        self.assertFalse(tool.has_active_session)
+
+    def test_failed_reset_and_cleanup_do_not_open_another_session(self):
+        from unittest.mock import Mock
+        adapter = self.adapter()
+        factory = Mock(return_value=adapter)
+        tool = self.tool(factory)
+        self.assertTrue(tool("synthetic music").success)
+        adapter.reset = Mock(side_effect=RuntimeError("private failure"))
+        self.context.fail_on_close = True
+        result = tool("another song")
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_code, "browser_stop_failed")
+        self.assertNotIn("private", result.message)
+        self.assertTrue(tool.has_active_session)
+        self.assertEqual(factory.call_count, 1)
+        self.context.fail_on_close = False
+        self.assertTrue(tool.stop().success)
 
     def test_rejects_invalid_query_before_creating_browser(self) -> None:
         factory_calls = 0

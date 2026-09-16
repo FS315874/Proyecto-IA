@@ -162,7 +162,8 @@ async function handleYoutubeSearch(argumentsValue) {
       if (document.querySelector("ytd-background-promo-renderer")) return 0;
       await new Promise((resolve) => setTimeout(resolve, 100));
     } while (Date.now() < deadline);
-    return 0;
+    // Ausencia del DOM esperado no demuestra una búsqueda legítimamente vacía.
+    throw new Error("search_dom_unavailable");
   });
   if (!Number.isInteger(resultCount) || resultCount < 0) {
     throw new Error("result_count_invalid");
@@ -258,9 +259,11 @@ async function handleYoutubeStop() {
       current_time: Number.isFinite(video.currentTime) ? video.currentTime : 0,
     };
   });
-  if (!state || !state.paused) throw new Error("playback_not_stopped");
+  if (state && !state.paused) throw new Error("playback_not_stopped");
   const tabId = await managedTabId();
-  return { ...youtubePage(await chrome.tabs.get(tabId)), ...state };
+  const page = youtubePage(await chrome.tabs.get(tabId));
+  if (!state) return { ...page, paused: true, media_present: false };
+  return { ...page, ...state, media_present: true };
 }
 
 async function dispatch(operation, argumentsValue) {
@@ -278,7 +281,16 @@ async function dispatch(operation, argumentsValue) {
 
 function safeErrorCode(error) {
   const code = error instanceof Error ? error.message : "extension_failure";
-  return /^[a-z0-9_]{1,80}$/.test(code) ? code : "extension_failure";
+  // Un texto privado también puede tener sólo minúsculas: no basta una regex.
+  const known = new Set([
+    "window_unavailable", "tab_unavailable", "navigation_timeout",
+    "unexpected_origin", "script_result_invalid", "invalid_arguments",
+    "site_not_allowed", "invalid_query", "search_dom_unavailable",
+    "result_count_invalid", "no_results", "result_not_allowed",
+    "playback_timeout", "playback_not_started", "tab_muted",
+    "video_unavailable", "playback_not_stopped", "operation_not_allowed",
+  ]);
+  return known.has(code) ? code : "extension_failure";
 }
 
 async function handleRequest(message) {

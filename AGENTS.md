@@ -40,6 +40,9 @@ python -m desktop_agent --gui
 python -m desktop_agent "abrir youtube"
 python -m desktop_agent "poné en youtube qué tan malo puedo ser"
 python -m desktop_agent "detener youtube"
+python -m desktop_agent "poné mi playlist 7W7 en spotify"
+python -m desktop_agent "pausá spotify"
+python -m desktop_agent "seguí reproduciendo spotify"
 python -m desktop_agent --plan "detener youtube luego detener youtube"
 python -m scripts.obs08_manual_check
 python -m scripts.vis08_simulated_check
@@ -50,6 +53,7 @@ python -m scripts.policy11_qa_check
 python -m scripts.ui12_smoke_check
 python -m scripts.voice13_qa_check
 python -m scripts.remote14_qa_check
+python -m scripts.spotify18_qa_check
 python -m unittest discover -s tests -v
 ```
 

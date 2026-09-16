@@ -58,6 +58,15 @@ class ValidateProposalTests(unittest.TestCase):
             ("OPEN_APPLICATION", "vscode", ProposalIntent.OPEN_APPLICATION),
             ("PLAY_YOUTUBE", "qué tan malo puedo ser", ProposalIntent.PLAY_YOUTUBE),
             ("STOP_YOUTUBE", None, ProposalIntent.STOP_YOUTUBE),
+            ("RESUME_YOUTUBE", None, ProposalIntent.RESUME_YOUTUBE),
+            ("PLAY_SPOTIFY_TRACK", "Song", ProposalIntent.PLAY_SPOTIFY_TRACK),
+            ("PLAY_SPOTIFY_PLAYLIST", "7W7", ProposalIntent.PLAY_SPOTIFY_PLAYLIST),
+            ("SEARCH_SPOTIFY_TRACK", "Song", ProposalIntent.SEARCH_SPOTIFY_TRACK),
+            ("PAUSE_SPOTIFY", None, ProposalIntent.PAUSE_SPOTIFY),
+            ("RESUME_SPOTIFY", None, ProposalIntent.RESUME_SPOTIFY),
+            ("NEXT_SPOTIFY", None, ProposalIntent.NEXT_SPOTIFY),
+            ("PREVIOUS_SPOTIFY", None, ProposalIntent.PREVIOUS_SPOTIFY),
+            ("SET_SPOTIFY_VOLUME", "35", ProposalIntent.SET_SPOTIFY_VOLUME),
             ("UNSUPPORTED", None, ProposalIntent.UNSUPPORTED),
         )
 
@@ -119,9 +128,14 @@ class ValidateProposalTests(unittest.TestCase):
             {"schema_version": 1, "intent": "OPEN_URL", "target": None},
             {"schema_version": 1, "intent": "UNSUPPORTED", "target": "youtube"},
             {"schema_version": 1, "intent": "STOP_YOUTUBE", "target": "youtube"},
+            {"schema_version": 1, "intent": "RESUME_YOUTUBE", "target": "youtube"},
             {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": None},
             {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": "x" * 201},
             {"schema_version": 1, "intent": "PLAY_YOUTUBE", "target": "x\x00y"},
+            {"schema_version": 1, "intent": "PAUSE_SPOTIFY", "target": "spotify"},
+            {"schema_version": 1, "intent": "PLAY_SPOTIFY_TRACK", "target": None},
+            {"schema_version": 1, "intent": "SET_SPOTIFY_VOLUME", "target": "101"},
+            {"schema_version": 1, "intent": "SET_SPOTIFY_VOLUME", "target": "035"},
         )
 
         for payload in invalid_payloads:
@@ -145,6 +159,33 @@ class BuildActionFromProposalTests(unittest.TestCase):
         action = build_action_from_proposal(ActionProposal(1, ProposalIntent.STOP_YOUTUBE, None))
         self.assertEqual(action.tool_name, "stop_youtube")
         self.assertEqual(action.arguments, {})
+
+    def test_resume_proposal_has_no_model_supplied_destination(self) -> None:
+        action = build_action_from_proposal(
+            ActionProposal(1, ProposalIntent.RESUME_YOUTUBE, None)
+        )
+        self.assertEqual(action.tool_name, "resume_youtube")
+        self.assertEqual(action.arguments, {})
+
+    def test_spotify_proposals_build_only_registered_media_actions(self) -> None:
+        cases = (
+            (ProposalIntent.PLAY_SPOTIFY_TRACK, "Song", "play_spotify_track", {"query": "Song"}),
+            (ProposalIntent.PLAY_SPOTIFY_PLAYLIST, "7W7", "play_spotify_playlist", {"name": "7W7"}),
+            (ProposalIntent.SEARCH_SPOTIFY_TRACK, "Song", "search_spotify_track", {"query": "Song"}),
+            (ProposalIntent.PAUSE_SPOTIFY, None, "pause_spotify", {}),
+            (ProposalIntent.RESUME_SPOTIFY, None, "resume_spotify", {}),
+            (ProposalIntent.NEXT_SPOTIFY, None, "next_spotify", {}),
+            (ProposalIntent.PREVIOUS_SPOTIFY, None, "previous_spotify", {}),
+            (ProposalIntent.SET_SPOTIFY_VOLUME, "35", "set_spotify_volume", {"percent": "35"}),
+        )
+        for intent, target, tool_name, arguments in cases:
+            with self.subTest(intent=intent):
+                action = build_action_from_proposal(ActionProposal(1, intent, target))
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertIs(action.intent, Intent.MEDIA_PLAYBACK)
+                self.assertEqual(action.tool_name, tool_name)
+                self.assertEqual(action.arguments, arguments)
 
     def test_builds_url_action_using_only_local_data(self) -> None:
         action = build_action_from_proposal(

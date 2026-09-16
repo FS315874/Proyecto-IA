@@ -38,9 +38,10 @@ class TkWorkflowTests(unittest.TestCase):
         self.temporary.cleanup()
         self.assertEqual(self.callbacks, [])
 
-    def app(self, *, auto=False, runtime=None):
+    def app(self, *, auto=False, runtime=None, diagnostics=None, diagnostic_logger=None):
         return TkDesktopAgentApp(self.root, self.service, self.voice, runtime,
-            settings=AppSettings(auto_send_voice=auto), settings_store=AppSettingsStore(self.path / "settings.json"))
+            settings=AppSettings(auto_send_voice=auto), settings_store=AppSettingsStore(self.path / "settings.json"),
+            diagnostics=diagnostics, diagnostic_logger=diagnostic_logger)
 
     def ready(self, text="Abrir calculadora.", status=VoiceResultStatus.READY):
         return VoiceUpdate("voice-1", VoiceState.READY, VoiceBackendResult(status, text, None, "es-UY", 250, 500), 750, "ready")
@@ -113,6 +114,71 @@ class TkWorkflowTests(unittest.TestCase):
         self.assertEqual(app.next_settings, AppSettings())
         self.assertEqual(AppSettingsStore(self.path / "settings.json").load(), AppSettings())
         self.assertTrue(app._closing)
+
+
+    def test_browser_save_error_survives_refresh_and_restores_effective_selection(self):
+        from desktop_agent.browser_preferences import BrowserPreference, BrowserPreferenceError
+        preference = BrowserPreference(PreferredBrowser.CHROME, True)
+        store = SimpleNamespace(load=lambda: preference, save=Mock(side_effect=BrowserPreferenceError("private path")))
+        runtime = SimpleNamespace(preferences=store, snapshot=BrowserBridgeSnapshot(BrowserBridgeState.WAITING, None))
+        app = self.app(runtime=runtime)
+        app._browser_choice.set("Opera GX")
+        app._browser_session.set(False)
+        app._save_browser_preference()
+        app._refresh_browser_status()
+        self.assertIn("no se pudo guardar", app._browser_status_text.get())
+        self.assertNotIn("private", app._browser_status_text.get())
+        self.assertEqual(app._browser_choice.get(), "Google Chrome")
+        self.assertTrue(app._browser_session.get())
+        store.save.side_effect = None
+        app._save_browser_preference()
+        self.assertIsNone(app._browser_error)
+
+    def test_error_history_is_visible_and_review_keeps_the_record(self):
+        from desktop_agent.diagnostics import emit_failure
+        from desktop_agent.error_history import ErrorHistory, ErrorHistoryHandler
+        handler = ErrorHistoryHandler(ErrorHistory(self.path / "errors.sqlite3"))
+        logger = logging.Logger(self.id())
+        logger.addHandler(handler)
+        emit_failure(logger, "app_missing", "executor", tool="open_application")
+        app = self.app(diagnostics=handler, diagnostic_logger=logger)
+        app._errors_button.invoke()
+        dialog = app._error_dialog
+        self.assertEqual(len(dialog.table.get_children()), 1)
+        dialog.table.selection_set(dialog.table.get_children()[0])
+        dialog.show_selected()
+        self.assertIn("Aplicación no encontrada", dialog.details.get())
+        dialog.review_button.invoke()
+        self.assertEqual(len(dialog.table.get_children()), 0)
+        dialog.include_reviewed.set(True)
+        dialog.refresh()
+        self.assertEqual(len(dialog.table.get_children()), 1)
+        app._errors_button.invoke()
+        self.assertIs(app._error_dialog, dialog)
+
+    def test_corrupt_history_is_shown_without_crashing_ui(self):
+        from desktop_agent.error_history import ErrorHistory, ErrorHistoryHandler
+        path = self.path / "broken.sqlite3"
+        path.write_bytes(b"synthetic broken history")
+        app = self.app(diagnostics=ErrorHistoryHandler(ErrorHistory(path)))
+        app._errors_button.invoke()
+        self.assertIn("No se pudo acceder", app._error_dialog.status.get())
+        self.assertEqual(path.read_bytes(), b"synthetic broken history")
+
+    def test_lost_history_warning_survives_a_later_successful_write(self):
+        from desktop_agent.diagnostics import emit_failure
+        from desktop_agent.error_history import ErrorHistory, ErrorHistoryHandler, HistoryUnavailable
+        handler = ErrorHistoryHandler(ErrorHistory(self.path / "errors.sqlite3"))
+        logger = logging.Logger(self.id())
+        logger.addHandler(handler)
+        with patch.object(handler.history, "record", side_effect=HistoryUnavailable()), patch("sys.stderr", None):
+            emit_failure(logger, "app_missing", "executor")
+        emit_failure(logger, "app_missing", "executor")
+        app = self.app(diagnostics=handler, diagnostic_logger=logger)
+        app._poll()
+        self.assertIn("1 sin guardar", app._errors_button.cget("text"))
+        app._errors_button.invoke()
+        self.assertIn("No se guardaron 1", app._error_dialog.status.get())
 
 
 class GuiRestartTests(unittest.TestCase):

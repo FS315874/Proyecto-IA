@@ -1,8 +1,8 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.17 implementada; aceptación de voz real y extensión pendiente.
-> Última revisión: 2026-09-11.
+> Estado comprobado del producto: v0.18 completada; aceptación real de voz y extensión pendiente.
+> Última revisión: 2026-09-16.
 
 ## 1. Propósito
 
@@ -212,6 +212,7 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.15 | Navegador habitual y Spotify | `PRUEBA_USUARIO` | Instalar y probar extensión. |
 | v0.16 | Aplicaciones locales habituales | `PRUEBA_USUARIO` | Probar aperturas visibles. |
 | v0.17 | Uso cotidiano y auditoría | `PRUEBA_USUARIO` | Validar micrófono, atajo y extensión con la versión nueva. |
+| v0.18 | Control oficial de Spotify | `COMPLETADO` | OAuth persistente, reproducción y controles reales aprobados. |
 
 Los estados históricos de núcleo/demo no implican que esas capacidades estén todas
 conectadas a la GUI. La aceptación vigente y los límites reales están en
@@ -1238,7 +1239,44 @@ POLISH-08; después acordar una capacidad concreta (por ejemplo catálogo de pro
 seleccionados por el usuario). Spotify por playlist, volumen por dispositivo, lectura
 en voz alta y exploración de aplicaciones desconocidas siguen fuera de esta versión.
 
-## 25. Privacidad y seguridad transversal
+### Mantenimiento autorizado — historial y fallos de v0.17
+
+Estado al 2026-09-14: implementación local y regresión completas; no es una versión
+nueva. Historial SQLite de los últimos 500 incidentes, GUI/CLI de sólo consulta,
+revisión explícita y datos cerrados sin órdenes/secretos. Se corrigieron preferencia
+no aplicada ocultada por refresco, pérdida de sesión tras parada fallida y errores
+de navegador mal clasificados. La pausa puede consultar la pestaña gestionada aunque
+el video se haya reanudado manualmente, y la limpieza sin reproductor ya no bloquea
+el siguiente recorrido. Búsqueda, pausa y reanudación del video actual tienen intents
+separados para no convertir controles en consultas. **489 Python + 13 JS aprobados.**
+
+La última reproducción real falló y no se confirmó la pausa de un video reanudado a
+mano. La corrección local requiere recargar y verificar la extensión instalada con el
+usuario. `POLISH-08` permanece en `PRUEBA_USUARIO`; no se adelanta otro catálogo.
+Diseño, pruebas y checklist: [ERROR_HISTORY.md](ERROR_HISTORY.md).
+
+## 25. v0.18 — Control oficial de Spotify
+
+Autorizada explícitamente por el usuario el 2026-09-14 después del cierre automatizado
+de v0.17, aunque `POLISH-08` continúe como aceptación personal pendiente. Capacidad
+principal: buscar y controlar reproducción de Spotify por API oficial desde los mismos
+pedidos de texto o voz revisada. No agrega control visual libre ni otras aplicaciones.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| SPOTIFY-18-01 — Contrato e intents | `COMPLETADO` | Acciones diferentes para canción, playlist, búsqueda, pausa, reanudación, siguiente, anterior y volumen. |
+| SPOTIFY-18-02 — OAuth PKCE | `COMPLETADO` | Callback loopback fijo, state, verifier, timeout, refresh y un reintento tras 401 mediante dobles. |
+| SPOTIFY-18-03 — Persistencia segura | `COMPLETADO` | Esquema 2 compatible con esquema 1; refresh token cifrado con DPAPI y desconexión explícita. |
+| SPOTIFY-18-04 — Dispositivo | `COMPLETADO` | Preferencia exacta o única computadora; no usa teléfono ni adivina entre computadoras. |
+| SPOTIFY-18-05 — Búsqueda y reproducción | `COMPLETADO` | Canción y playlist resueltas por endpoints fijos; coincidencia ambigua falla segura. |
+| SPOTIFY-18-06 — Controles y verificación | `COMPLETADO` | Pausa/play/salto/volumen y lectura posterior; un estado HTTP exitoso por sí solo no cuenta como éxito. |
+| SPOTIFY-18-07 — QA y documentación | `COMPLETADO` | 127 pruebas específicas, 524 Python y 13 JS aprobadas; arquitectura v0.18 sincronizada. |
+| SPOTIFY-18-08 — Aceptación personal | `COMPLETADO` | OAuth persistente, playlist/canción, pausa, reanudación, saltos y volumen aprobados en Spotify real el 2026-09-16. |
+
+Detalles, decisiones y comandos exactos:
+[V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md).
+
+## 26. Privacidad y seguridad transversal
 
 - El equipo se considera un entorno con información potencialmente sensible.
 - Screenshots y accesibilidad se minimizan antes de enviarse externamente.
@@ -1251,7 +1289,7 @@ en voz alta y exploración de aplicaciones desconocidas siguen fuera de esta ver
 - Toda tarea remota tiene timeout, cancelación y registro.
 - El usuario mantiene un mecanismo de emergencia probado.
 
-## 26. Mantenimiento de este roadmap
+## 27. Mantenimiento de este roadmap
 
 Al completar un paso se debe actualizar:
 
@@ -1266,7 +1304,7 @@ No se agregan nuevas versiones por cada idea puntual. Una capacidad futura se re
 solo cuando cambia materialmente la arquitectura o el producto y el usuario aprueba
 incorporarla al roadmap.
 
-## 26. Formato de entrega de cada paso
+## 28. Formato de entrega de cada paso
 
 ```text
 Paso completado:
@@ -1294,15 +1332,15 @@ Próximo paso habilitado:
 Sí/No y motivo.
 ```
 
-## 27. Próxima acción autorizable
+## 29. Próxima acción autorizable
 
-Cerrar `POLISH-08`: aceptación personal de voz, cancelación/atajos, extensión recargada,
-reproducción audible y aperturas habituales. Incluye los recorridos pendientes de
-`APP-16-05` y `BROWSER-15-07`; Spotify significa apertura, no reproducción de playlists.
-La evidencia automatizada y las comprobaciones reales limitadas de la auditoría
-están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md). No equivalen a la aceptación
-del usuario ni autorizan llamadas pagas nuevas.
+Retomar `POLISH-08`: voz, cancelación/atajos y recorrido de YouTube con la extensión
+recargada. Antes, consultar el historial local de errores y fijar una reproducción por
+incidente. No compartir claves, tokens ni capturas de cuentas.
+La evidencia automatizada está en [V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md) y no
+equivale a audio ni autorización reales.
 
 Para continuar sin reconstruir el historial, consultar el punto de reanudación de
-[MASTER_GUIDE.md](MASTER_GUIDE.md). Después de la aceptación se acuerda una sola
+[MASTER_GUIDE.md](MASTER_GUIDE.md) y los incidentes con `python -m desktop_agent --errors`.
+Después de la aceptación se acuerda una sola
 capacidad adicional antes de avanzar de versión.

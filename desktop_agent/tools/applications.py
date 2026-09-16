@@ -151,6 +151,7 @@ def open_application(
         return ToolResult(
             success=False,
             message=f"La aplicación '{name}' no está permitida.",
+            error_code="action_rejected",
         )
 
     executable = _resolve_executable(
@@ -165,6 +166,7 @@ def open_application(
                 f"No se encontró {application.name}. "
                 "Comprobá que esté instalada."
             ),
+            error_code="app_missing",
         )
 
     try:
@@ -187,6 +189,7 @@ def open_application(
         return ToolResult(
             success=False,
             message=f"No se pudo iniciar {application.name}." + (f" {detail}" if detail else ""),
+            error_code="app_launch_denied" if code in (5, 740) else "app_launch_failed",
         )
 
     if not _wait_until_running(
@@ -207,6 +210,7 @@ def open_application(
                 f"Se solicitó abrir {application.name}, pero no se pudo comprobar "
                 "que el proceso quedara activo." + launcher_hint
             ),
+            error_code="app_unverified",
         )
 
     return ToolResult(

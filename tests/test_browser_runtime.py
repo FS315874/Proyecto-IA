@@ -5,6 +5,7 @@ from pathlib import Path
 
 from desktop_agent.browser_bridge import (
     BrowserBridgeOperation,
+    BrowserBridgeError,
     BrowserBridgeResponse,
     BrowserBridgeSnapshot,
     BrowserBridgeState,
@@ -56,6 +57,12 @@ class FakeNativeBridge(FakeBridge):
 
     def close(self) -> None:
         self.close_calls += 1
+
+
+class FakeWaitingBridge(FakeBridge):
+    @property
+    def snapshot(self) -> BrowserBridgeSnapshot:
+        return BrowserBridgeSnapshot(BrowserBridgeState.WAITING, None)
 
 
 class FakeLock:
@@ -172,6 +179,58 @@ class PreferredBrowserRuntimeTests(unittest.TestCase):
         adapter = factory()
 
         self.assertTrue(adapter.policy.persistent_profile)
+
+    def test_managed_stop_adapter_uses_connected_current_session(self) -> None:
+        isolated_calls: list[object] = []
+        factory = PreferredYouTubeAdapterFactory(
+            StaticBrowserPreferenceSource(
+                BrowserPreference(PreferredBrowser.OPERA_GX, True)
+            ),
+            FakeBridge(),
+            logging.getLogger(self.id()),
+            isolated_factory=lambda: isolated_calls.append(object()),
+        )
+
+        adapter = factory.current_session_adapter()
+
+        self.assertIsNotNone(adapter)
+        assert adapter is not None
+        self.assertTrue(adapter.policy.persistent_profile)
+        self.assertEqual(isolated_calls, [])
+
+    def test_managed_stop_adapter_is_absent_when_current_session_is_disabled(self) -> None:
+        isolated_calls: list[object] = []
+        factory = PreferredYouTubeAdapterFactory(
+            StaticBrowserPreferenceSource(),
+            None,
+            logging.getLogger(self.id()),
+            isolated_factory=lambda: isolated_calls.append(object()),
+        )
+
+        self.assertIsNone(factory.current_session_adapter())
+        self.assertEqual(isolated_calls, [])
+
+    def test_managed_stop_does_not_launch_a_disconnected_browser(self) -> None:
+        from unittest.mock import Mock
+
+        bridge = FakeWaitingBridge()
+        connector = Mock(return_value=True)
+        isolated = Mock()
+        factory = PreferredYouTubeAdapterFactory(
+            StaticBrowserPreferenceSource(
+                BrowserPreference(PreferredBrowser.CHROME, True)
+            ),
+            bridge,
+            logging.getLogger(self.id()),
+            isolated_factory=isolated,
+            session_connector=connector,
+        )
+
+        with self.assertRaises(BrowserBridgeError):
+            factory.current_session_adapter()
+
+        connector.assert_not_called()
+        isolated.assert_not_called()
 
     def test_runtime_owns_bridge_only_after_acquiring_single_instance_lock(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

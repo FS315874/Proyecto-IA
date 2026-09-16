@@ -131,6 +131,9 @@ class OpenAIProposalProviderTests(unittest.TestCase):
             "god_of_war_ragnarok",
         ):
             self.assertIn(canonical_key, instructions)
+        self.assertIn("pausar", instructions)
+        self.assertIn("reanudar", instructions)
+        self.assertIn("Nunca conviertas un control", instructions)
         self.assertNotIn("https://", instructions)
 
     def test_extracts_numeric_usage_and_estimates_current_model_cost(self) -> None:
@@ -211,7 +214,22 @@ class OpenAIProposalProviderTests(unittest.TestCase):
         self.assertEqual(properties["schema_version"]["enum"], [1])
         self.assertEqual(
             properties["intent"]["enum"],
-            ["OPEN_URL", "OPEN_APPLICATION", "PLAY_YOUTUBE", "STOP_YOUTUBE", "UNSUPPORTED"],
+            [
+                "OPEN_URL",
+                "OPEN_APPLICATION",
+                "PLAY_YOUTUBE",
+                "STOP_YOUTUBE",
+                "RESUME_YOUTUBE",
+                "PLAY_SPOTIFY_TRACK",
+                "PLAY_SPOTIFY_PLAYLIST",
+                "SEARCH_SPOTIFY_TRACK",
+                "PAUSE_SPOTIFY",
+                "RESUME_SPOTIFY",
+                "NEXT_SPOTIFY",
+                "PREVIOUS_SPOTIFY",
+                "SET_SPOTIFY_VOLUME",
+                "UNSUPPORTED",
+            ],
         )
         self.assertEqual(properties["target"]["type"], ["string", "null"])
 

@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
+from desktop_agent.diagnostics import emit_failure
+
 
 MAX_TRANSCRIPT_LENGTH = 500
 _CULTURE = re.compile(r"^(?:[a-z]{2}-[A-Z]{2}|none)$")
@@ -293,6 +295,16 @@ class VoiceController:
             VoiceResultStatus.FAILED: VoiceState.ERROR,
         }[result.status]
         total_ms = max(0.0, (self._clock() - started) * 1000)
+        if state is VoiceState.ERROR:
+            if result.status is VoiceResultStatus.BUDGET_EXCEEDED:
+                code = "budget_exceeded"
+            elif result.failure_reason is not None:
+                code = "voice_" + result.failure_reason.value
+            else:
+                code = "voice_" + result.status.value
+            emit_failure(self._logger, code, "voice",
+                         stage="transcription" if result.failure_reason else "capture",
+                         duration_ms=total_ms)
         with self._lock:
             if self._capture_id == capture_id:
                 self._state = state

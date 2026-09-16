@@ -37,6 +37,15 @@ class PlanProposalIntent(str, Enum):
     OPEN_APPLICATION = "OPEN_APPLICATION"
     PLAY_YOUTUBE = "PLAY_YOUTUBE"
     STOP_YOUTUBE = "STOP_YOUTUBE"
+    RESUME_YOUTUBE = "RESUME_YOUTUBE"
+    PLAY_SPOTIFY_TRACK = "PLAY_SPOTIFY_TRACK"
+    PLAY_SPOTIFY_PLAYLIST = "PLAY_SPOTIFY_PLAYLIST"
+    SEARCH_SPOTIFY_TRACK = "SEARCH_SPOTIFY_TRACK"
+    PAUSE_SPOTIFY = "PAUSE_SPOTIFY"
+    RESUME_SPOTIFY = "RESUME_SPOTIFY"
+    NEXT_SPOTIFY = "NEXT_SPOTIFY"
+    PREVIOUS_SPOTIFY = "PREVIOUS_SPOTIFY"
+    SET_SPOTIFY_VOLUME = "SET_SPOTIFY_VOLUME"
 
 
 class PlanStepState(str, Enum):
@@ -200,6 +209,68 @@ def _build_action(intent: PlanProposalIntent, target: object) -> Action:
             Intent.BROWSER_NAVIGATION,
             "stop_youtube",
             {},
+            RiskLevel.SAFE,
+            False,
+        )
+    if intent is PlanProposalIntent.RESUME_YOUTUBE:
+        if target is not None:
+            raise PlanValidationError("Reanudar YouTube no admite un destino.")
+        return Action(
+            Intent.BROWSER_NAVIGATION,
+            "resume_youtube",
+            {},
+            RiskLevel.SAFE,
+            False,
+        )
+    spotify_targets = {
+        PlanProposalIntent.PLAY_SPOTIFY_TRACK: ("play_spotify_track", "query"),
+        PlanProposalIntent.PLAY_SPOTIFY_PLAYLIST: ("play_spotify_playlist", "name"),
+        PlanProposalIntent.SEARCH_SPOTIFY_TRACK: ("search_spotify_track", "query"),
+    }
+    if intent in spotify_targets:
+        if not isinstance(target, str):
+            raise PlanValidationError("La búsqueda de Spotify no es válida.")
+        try:
+            normalized = normalize_search_query(target)
+        except ValueError as error:
+            raise PlanValidationError("La búsqueda de Spotify no es válida.") from error
+        tool_name, argument_name = spotify_targets[intent]
+        return Action(
+            Intent.MEDIA_PLAYBACK,
+            tool_name,
+            {argument_name: normalized},
+            RiskLevel.SAFE,
+            False,
+        )
+    spotify_controls = {
+        PlanProposalIntent.PAUSE_SPOTIFY: "pause_spotify",
+        PlanProposalIntent.RESUME_SPOTIFY: "resume_spotify",
+        PlanProposalIntent.NEXT_SPOTIFY: "next_spotify",
+        PlanProposalIntent.PREVIOUS_SPOTIFY: "previous_spotify",
+    }
+    if intent in spotify_controls:
+        if target is not None:
+            raise PlanValidationError("El control de Spotify no admite un destino.")
+        return Action(
+            Intent.MEDIA_PLAYBACK,
+            spotify_controls[intent],
+            {},
+            RiskLevel.SAFE,
+            False,
+        )
+    if intent is PlanProposalIntent.SET_SPOTIFY_VOLUME:
+        if (
+            not isinstance(target, str)
+            or not target.isascii()
+            or not target.isdigit()
+            or target != str(int(target))
+            or not 0 <= int(target) <= 100
+        ):
+            raise PlanValidationError("El volumen de Spotify no es válido.")
+        return Action(
+            Intent.MEDIA_PLAYBACK,
+            "set_spotify_volume",
+            {"percent": target},
             RiskLevel.SAFE,
             False,
         )
@@ -450,9 +521,48 @@ class TaskPlanValidator:
                     )
                 except ValueError:
                     valid = False
-        elif action.tool_name == "stop_youtube":
+        elif action.tool_name in {"stop_youtube", "resume_youtube"}:
             valid = (
                 action.intent is Intent.BROWSER_NAVIGATION and not arguments
+            )
+        elif action.tool_name in {
+            "play_spotify_track",
+            "play_spotify_playlist",
+            "search_spotify_track",
+        }:
+            argument_name = (
+                "name" if action.tool_name == "play_spotify_playlist" else "query"
+            )
+            if (
+                action.intent is not Intent.MEDIA_PLAYBACK
+                or set(arguments) != {argument_name}
+            ):
+                valid = False
+            else:
+                try:
+                    valid = (
+                        normalize_search_query(arguments[argument_name])
+                        == arguments[argument_name]
+                    )
+                except ValueError:
+                    valid = False
+        elif action.tool_name in {
+            "pause_spotify",
+            "resume_spotify",
+            "next_spotify",
+            "previous_spotify",
+        }:
+            valid = action.intent is Intent.MEDIA_PLAYBACK and not arguments
+        elif action.tool_name == "set_spotify_volume":
+            value = arguments.get("percent")
+            valid = (
+                action.intent is Intent.MEDIA_PLAYBACK
+                and set(arguments) == {"percent"}
+                and isinstance(value, str)
+                and value.isascii()
+                and value.isdigit()
+                and value == str(int(value))
+                and 0 <= int(value) <= 100
             )
         else:
             valid = False

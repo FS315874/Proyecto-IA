@@ -104,6 +104,8 @@ class SafeBrowserAdapter:
         self._state = BrowserSessionState.READY
         self._active_site_key: str | None = None
         self._last_result_count: int | None = None
+        self._close_started = False
+        self._closed_resources: set[str] = set()
 
     @property
     def limits(self) -> BrowserLimits:
@@ -212,6 +214,40 @@ class SafeBrowserAdapter:
             self._state = BrowserSessionState.PLAYING
         return result
 
+    def resume_current_playback(self) -> BrowserStepResult:
+        """Reanuda el video conocido sin convertir la orden en una búsqueda."""
+
+        if self._close_started or self._state not in {
+            BrowserSessionState.READY,
+            BrowserSessionState.PLAYING,
+        }:
+            return self._invalid_state(BrowserOperation.START_PLAYBACK)
+        if (
+            self._state is BrowserSessionState.READY
+            and not self._policy.persistent_profile
+        ):
+            return self._invalid_state(BrowserOperation.START_PLAYBACK)
+        if (
+            self._state is BrowserSessionState.PLAYING
+            and self._active_site_key != "youtube"
+        ):
+            return self._invalid_state(BrowserOperation.START_PLAYBACK)
+
+        self._active_site_key = "youtube"
+        result = self._execute(
+            BrowserOperation.START_PLAYBACK,
+            lambda: self._dependencies.page.start_playback(
+                self._limits.operation_timeout_seconds
+            ),
+        )
+        if result.status is BrowserStepStatus.SUCCESS:
+            if not isinstance(result.payload, PlaybackSnapshot):
+                return self._backend_contract_failure(
+                    BrowserOperation.START_PLAYBACK
+                )
+            self._state = BrowserSessionState.PLAYING
+        return result
+
     def read_playback(self) -> BrowserStepResult:
         if self._state is not BrowserSessionState.PLAYING:
             return self._invalid_state(BrowserOperation.READ_PLAYBACK)
@@ -231,7 +267,7 @@ class SafeBrowserAdapter:
     def reset(self) -> BrowserStepResult:
         """Reutiliza página y contexto para un nuevo flujo semántico."""
 
-        if self._state is BrowserSessionState.CLOSED:
+        if self._state is BrowserSessionState.CLOSED or self._close_started:
             return self._invalid_state(BrowserOperation.RESET)
         self._state = BrowserSessionState.READY
         self._active_site_key = None
@@ -253,16 +289,18 @@ class SafeBrowserAdapter:
             )
 
         started_at = self._dependencies.clock()
+        self._close_started = True
         failed = False
-        try:
-            self._dependencies.context.close()
-        except Exception:
-            failed = True
-        try:
-            self._dependencies.browser.close()
-        except Exception:
-            failed = True
-        self._state = BrowserSessionState.CLOSED
+        for name in ("context", "browser"):
+            if name in self._closed_resources:
+                continue
+            try:
+                getattr(self._dependencies, name).close()
+            except Exception:
+                failed = True
+            else:
+                self._closed_resources.add(name)
+        self._state = BrowserSessionState.FAILED if failed else BrowserSessionState.CLOSED
         duration_ms = self._duration_ms(started_at)
 
         if failed:

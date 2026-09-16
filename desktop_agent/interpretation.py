@@ -21,6 +21,15 @@ class ProposalIntent(str, Enum):
     OPEN_APPLICATION = "OPEN_APPLICATION"
     PLAY_YOUTUBE = "PLAY_YOUTUBE"
     STOP_YOUTUBE = "STOP_YOUTUBE"
+    RESUME_YOUTUBE = "RESUME_YOUTUBE"
+    PLAY_SPOTIFY_TRACK = "PLAY_SPOTIFY_TRACK"
+    PLAY_SPOTIFY_PLAYLIST = "PLAY_SPOTIFY_PLAYLIST"
+    SEARCH_SPOTIFY_TRACK = "SEARCH_SPOTIFY_TRACK"
+    PAUSE_SPOTIFY = "PAUSE_SPOTIFY"
+    RESUME_SPOTIFY = "RESUME_SPOTIFY"
+    NEXT_SPOTIFY = "NEXT_SPOTIFY"
+    PREVIOUS_SPOTIFY = "PREVIOUS_SPOTIFY"
+    SET_SPOTIFY_VOLUME = "SET_SPOTIFY_VOLUME"
     UNSUPPORTED = "UNSUPPORTED"
 
 
@@ -218,16 +227,35 @@ def _validate_proposal_values(
         raise ProposalValidationError(
             "El destino debe ser una clave canónica no vacía."
         )
-    without_target = {ProposalIntent.UNSUPPORTED, ProposalIntent.STOP_YOUTUBE}
+    without_target = {
+        ProposalIntent.UNSUPPORTED,
+        ProposalIntent.STOP_YOUTUBE,
+        ProposalIntent.RESUME_YOUTUBE,
+        ProposalIntent.PAUSE_SPOTIFY,
+        ProposalIntent.RESUME_SPOTIFY,
+        ProposalIntent.NEXT_SPOTIFY,
+        ProposalIntent.PREVIOUS_SPOTIFY,
+    }
     if intent in without_target and target is not None:
         raise ProposalValidationError("Este intent requiere un destino null.")
     if intent not in without_target and target is None:
         raise ProposalValidationError("Un intent ejecutable requiere un destino.")
-    if intent is ProposalIntent.PLAY_YOUTUBE:
+    if intent in {
+        ProposalIntent.PLAY_YOUTUBE,
+        ProposalIntent.PLAY_SPOTIFY_TRACK,
+        ProposalIntent.PLAY_SPOTIFY_PLAYLIST,
+        ProposalIntent.SEARCH_SPOTIFY_TRACK,
+    }:
         try:
             target = normalize_search_query(target)
         except ValueError:
-            raise ProposalValidationError("La consulta de YouTube no es válida.") from None
+            raise ProposalValidationError("La consulta de reproducción no es válida.") from None
+    if intent is ProposalIntent.SET_SPOTIFY_VOLUME:
+        if not isinstance(target, str) or not target.isascii() or not target.isdigit():
+            raise ProposalValidationError("El volumen de Spotify no es válido.")
+        percent = int(target)
+        if not 0 <= percent <= 100 or target != str(percent):
+            raise ProposalValidationError("El volumen de Spotify no es válido.")
 
     return ActionProposal(
         schema_version=schema_version,
@@ -267,12 +295,47 @@ def build_action_from_proposal(proposal: ActionProposal) -> Action | None:
     if proposal.intent is ProposalIntent.UNSUPPORTED:
         return None
 
-    if proposal.intent in {ProposalIntent.PLAY_YOUTUBE, ProposalIntent.STOP_YOUTUBE}:
+    if proposal.intent in {
+        ProposalIntent.PLAY_YOUTUBE,
+        ProposalIntent.STOP_YOUTUBE,
+        ProposalIntent.RESUME_YOUTUBE,
+    }:
+        tools = {
+            ProposalIntent.PLAY_YOUTUBE: "play_youtube",
+            ProposalIntent.STOP_YOUTUBE: "stop_youtube",
+            ProposalIntent.RESUME_YOUTUBE: "resume_youtube",
+        }
         playing = proposal.intent is ProposalIntent.PLAY_YOUTUBE
         return Action(
             intent=Intent.BROWSER_NAVIGATION,
-            tool_name="play_youtube" if playing else "stop_youtube",
+            tool_name=tools[proposal.intent],
             arguments={"query": proposal.target} if playing else {},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
+
+    spotify_tools = {
+        ProposalIntent.PLAY_SPOTIFY_TRACK: ("play_spotify_track", "query"),
+        ProposalIntent.PLAY_SPOTIFY_PLAYLIST: ("play_spotify_playlist", "name"),
+        ProposalIntent.SEARCH_SPOTIFY_TRACK: ("search_spotify_track", "query"),
+        ProposalIntent.PAUSE_SPOTIFY: ("pause_spotify", None),
+        ProposalIntent.RESUME_SPOTIFY: ("resume_spotify", None),
+        ProposalIntent.NEXT_SPOTIFY: ("next_spotify", None),
+        ProposalIntent.PREVIOUS_SPOTIFY: ("previous_spotify", None),
+        ProposalIntent.SET_SPOTIFY_VOLUME: ("set_spotify_volume", "percent"),
+    }
+    spotify_tool = spotify_tools.get(proposal.intent)
+    if spotify_tool is not None:
+        tool_name, argument_name = spotify_tool
+        arguments = (
+            {argument_name: proposal.target}
+            if argument_name is not None
+            else {}
+        )
+        return Action(
+            intent=Intent.MEDIA_PLAYBACK,
+            tool_name=tool_name,
+            arguments=arguments,
             risk_level=RiskLevel.SAFE,
             requires_confirmation=False,
         )

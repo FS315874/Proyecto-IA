@@ -58,23 +58,37 @@ class PreferredYouTubeAdapterFactory:
             lambda: create_youtube_playwright_adapter(logger)
         )
 
-    def __call__(self):
+    def current_session_adapter(self, *, connect: bool = False):
+        """Obtiene sólo la sesión gestionada, sin abrir un navegador por defecto."""
+
         preference = self._preferences.load()
-        if preference.use_current_session:
-            expected_browser = browser_kind_for_preference(preference.browser)
-            if self._session_connector is not None and not self._session_connector(preference):
-                raise BrowserBridgeError("La extensión del navegador no está disponible.")
-            if (self._bridge is None
-                or self._bridge.snapshot.state is not BrowserBridgeState.CONNECTED
-                or self._bridge.snapshot.browser is not expected_browser):
-                raise BrowserBridgeError(
-                    "La extensión del navegador no está disponible."
-                )
-            return create_youtube_extension_adapter(
-                self._bridge,
-                expected_browser,
-                self._logger,
+        if not preference.use_current_session:
+            return None
+        expected_browser = browser_kind_for_preference(preference.browser)
+        if (
+            connect
+            and self._session_connector is not None
+            and not self._session_connector(preference)
+        ):
+            raise BrowserBridgeError("La extensión del navegador no está disponible.")
+        if (
+            self._bridge is None
+            or self._bridge.snapshot.state is not BrowserBridgeState.CONNECTED
+            or self._bridge.snapshot.browser is not expected_browser
+        ):
+            raise BrowserBridgeError(
+                "La extensión del navegador no está disponible."
             )
+        return create_youtube_extension_adapter(
+            self._bridge,
+            expected_browser,
+            self._logger,
+        )
+
+    def __call__(self):
+        adapter = self.current_session_adapter(connect=True)
+        if adapter is not None:
+            return adapter
         return self._isolated_factory()
 
 

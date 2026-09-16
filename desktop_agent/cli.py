@@ -1,9 +1,11 @@
 import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from desktop_agent import __version__
+from desktop_agent.app_settings import AppSettings, AppSettingsStore, SettingsError
 from desktop_agent.budgeted_provider import BudgetedProposalProvider
 from desktop_agent.browser_bridge import BrowserBridgeClient
 from desktop_agent.browser_preferences import (
@@ -41,6 +43,11 @@ from desktop_agent.provider_config import (
     ProviderConfigurationError,
     load_provider_config,
 )
+from desktop_agent.spotify import (
+    SpotifyConfig,
+    SpotifyPlaybackTool,
+    build_spotify_tool,
+)
 from desktop_agent.tools.applications import open_application
 from desktop_agent.tools.browser import open_url
 from desktop_agent.tools.browser_automation import YouTubePlaybackTool
@@ -61,25 +68,68 @@ class PlaybackController(Protocol):
 
     def stop(self) -> ToolResult: ...
 
+    def resume(self) -> ToolResult: ...
+
+
+@runtime_checkable
+class SpotifyController(Protocol):
+    def play_track(self, query: str) -> ToolResult: ...
+
+    def play_playlist(self, name: str) -> ToolResult: ...
+
+    def search_track(self, query: str) -> ToolResult: ...
+
+    def pause(self) -> ToolResult: ...
+
+    def resume(self) -> ToolResult: ...
+
+    def next(self) -> ToolResult: ...
+
+    def previous(self) -> ToolResult: ...
+
+    def set_volume(self, percent: str) -> ToolResult: ...
+
 
 def _default_playback_controller(
     logger: logging.Logger,
     browser_preferences: BrowserPreferenceSource,
     browser_bridge: BrowserBridgeClient | None,
 ) -> PlaybackController:
+    adapter_factory = PreferredYouTubeAdapterFactory(
+        browser_preferences,
+        browser_bridge,
+        logger,
+        isolated_factory=lambda: create_youtube_playwright_adapter(logger),
+        session_connector=PreferredBrowserOpener(
+            browser_preferences, bridge=browser_bridge,
+        ).ensure_current_session,
+    )
     return YouTubePlaybackTool(
-        PreferredYouTubeAdapterFactory(
-            browser_preferences,
-            browser_bridge,
-            logger,
-            isolated_factory=lambda: create_youtube_playwright_adapter(logger),
-            session_connector=PreferredBrowserOpener(
-                browser_preferences, bridge=browser_bridge,
-            ).ensure_current_session,
-        ),
+        adapter_factory,
         logger,
         session_key=browser_preferences.load,
+        managed_session_factory=adapter_factory.current_session_adapter,
     )
+
+
+def build_spotify_controller(
+    settings: AppSettings,
+    store: AppSettingsStore,
+    logger: logging.Logger,
+) -> SpotifyPlaybackTool:
+    """Compone Spotify y guarda únicamente el refresh token cifrado."""
+
+    config = SpotifyConfig(
+        enabled=settings.spotify_enabled,
+        client_id=settings.spotify_client_id,
+        refresh_token=settings.spotify_refresh_token,
+        preferred_device_name=settings.spotify_device_name,
+    )
+
+    def save_refresh_token(token: str) -> None:
+        store.save(replace(settings, spotify_refresh_token=token))
+
+    return build_spotify_tool(config, logger, save_refresh_token)
 
 
 def build_executor(
@@ -88,6 +138,7 @@ def build_executor(
     *,
     browser_preferences: BrowserPreferenceSource | None = None,
     browser_bridge: BrowserBridgeClient | None = None,
+    spotify_controller: SpotifyController | None = None,
 ) -> tuple[ActionExecutor, PlaybackController]:
     """Registra herramientas sin iniciar Chromium hasta recibir una orden web."""
 
@@ -108,6 +159,13 @@ def build_executor(
     )
     if not isinstance(controller, PlaybackController):
         raise TypeError("El controlador de reproducción no es válido.")
+    spotify = spotify_controller or SpotifyPlaybackTool(
+        None,
+        logger,
+        enabled=False,
+    )
+    if not isinstance(spotify, SpotifyController):
+        raise TypeError("El controlador de Spotify no es válido.")
     browser_opener = PreferredBrowserOpener(
         preferences,
         bridge=browser_bridge,
@@ -118,6 +176,15 @@ def build_executor(
             "open_application": open_application,
             "play_youtube": controller,
             "stop_youtube": controller.stop,
+            "resume_youtube": controller.resume,
+            "play_spotify_track": spotify.play_track,
+            "play_spotify_playlist": spotify.play_playlist,
+            "search_spotify_track": spotify.search_track,
+            "pause_spotify": spotify.pause,
+            "resume_spotify": spotify.resume,
+            "next_spotify": spotify.next,
+            "previous_spotify": spotify.previous,
+            "set_spotify_volume": spotify.set_volume,
         },
         logger=logger,
     )
@@ -353,6 +420,23 @@ def _hold_one_shot_playback(
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
 
+    if arguments and arguments[0] == "--errors":
+        # Consulta diagnóstica sin iniciar navegador, cargar credenciales o llamar IA.
+        from desktop_agent.error_history import ErrorHistory, HistoryUnavailable
+        import json
+
+        if arguments not in (["--errors"], ["--errors", "--all"]):
+            print("Uso: python -m desktop_agent --errors [--all]", file=sys.stderr)
+            return 2
+        try:
+            incidents = ErrorHistory().list(include_reviewed="--all" in arguments)
+        except HistoryUnavailable as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        print(json.dumps({"schema_version": 1, "classification": "preliminary",
+                          "incidents": [item.report() for item in incidents]}, ensure_ascii=True, indent=2))
+        return 0
+
     if arguments == ["--gui"]:
         from desktop_agent.tk_app import run_gui
 
@@ -367,10 +451,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     browser_runtime = BrowserRuntime()
     browser_runtime.start()
     try:
+        spotify_store = AppSettingsStore()
+        try:
+            spotify_settings = spotify_store.load()
+        except SettingsError:
+            spotify_settings = AppSettings()
+            print(
+                "Configuración de Spotify inválida; la integración queda deshabilitada.",
+                file=sys.stderr,
+            )
+        spotify_controller = build_spotify_controller(
+            spotify_settings,
+            spotify_store,
+            logger,
+        )
         executor, playback_controller = build_executor(
             logger,
             browser_preferences=browser_runtime.preferences,
             browser_bridge=browser_runtime.bridge,
+            spotify_controller=spotify_controller,
         )
 
         if arguments and arguments[0] == "--plan":

@@ -27,8 +27,10 @@ class AppSettingsTests(unittest.TestCase):
     def test_default_budget_and_opt_ins_are_safe(self):
         settings = self.store.load()
         self.assertEqual(settings.monthly_budget_usd, 1)
-        for name in ("ai_enabled", "voice_enabled", "auto_send_voice", "remember_key", "voice_hotkey"):
+        for name in ("ai_enabled", "voice_enabled", "auto_send_voice", "remember_key", "voice_hotkey", "spotify_enabled"):
             self.assertFalse(getattr(settings, name))
+        self.assertIsNone(settings.spotify_client_id)
+        self.assertIsNone(settings.spotify_refresh_token)
         self.assertFalse(self.path.exists())
 
     def test_encrypted_roundtrip_does_not_expose_key_in_file_or_repr(self):
@@ -50,6 +52,44 @@ class AppSettingsTests(unittest.TestCase):
         self.assertIsNone(json.loads(self.path.read_text())["protected_key"])
         self.assertEqual(settings.environment({})["OPENAI_API_KEY"], settings.api_key)
 
+    def test_spotify_refresh_token_is_always_encrypted_and_can_be_removed(self):
+        settings = AppSettings(
+            spotify_enabled=True,
+            spotify_client_id="spotify-client-id",
+            spotify_device_name="DESKTOP",
+            spotify_refresh_token="private-spotify-refresh",
+        )
+        self.store.save(settings)
+
+        loaded = self.store.load()
+
+        self.assertEqual(loaded.spotify_refresh_token, "private-spotify-refresh")
+        raw = self.path.read_text()
+        self.assertNotIn("private-spotify-refresh", raw)
+        self.assertNotIn("private-spotify-refresh", repr(loaded))
+        self.store.save(replace(settings, spotify_refresh_token=None))
+        self.assertIsNone(self.store.load().spotify_refresh_token)
+
+    def test_schema_one_settings_are_migrated_without_enabling_spotify(self):
+        legacy = {
+            "ai_enabled": False,
+            "voice_enabled": False,
+            "monthly_budget_usd": 1.0,
+            "microphone": None,
+            "auto_send_voice": False,
+            "voice_hotkey": False,
+            "remember_key": False,
+            "schema_version": 1,
+            "protected_key": None,
+        }
+        self.path.write_text(json.dumps(legacy), encoding="utf-8")
+
+        loaded = self.store.load()
+
+        self.assertFalse(loaded.spotify_enabled)
+        self.assertIsNone(loaded.spotify_client_id)
+        self.assertIsNone(loaded.spotify_refresh_token)
+
     def test_environment_is_not_mutated_and_cannot_reenable_disabled_features(self):
         original = {"OPENAI_API_KEY": "old-private-key", "DESKTOP_AGENT_AI_ENABLED": "true", "OTHER": "ok"}
         result = AppSettings(monthly_budget_usd=.25).environment(original)
@@ -66,6 +106,10 @@ class AppSettingsTests(unittest.TestCase):
             AppSettings(ai_enabled="true")
         with self.assertRaises(SettingsError):
             AppSettings(api_key="secret with spaces")
+        with self.assertRaises(SettingsError):
+            AppSettings(spotify_enabled=True)
+        with self.assertRaises(SettingsError):
+            AppSettings(spotify_client_id="client id")
 
     def test_corrupt_file_fails_closed_with_redacted_message(self):
         self.path.write_text('{"private-secret": 1}', encoding="utf-8")

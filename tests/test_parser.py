@@ -30,6 +30,11 @@ class ParseCommandTests(unittest.TestCase):
             "detener YouTube",
             "parar youtube",
             "Detener YouTube.",
+            "Pausá YouTube.",
+            "Pausá lo que estaba sonando en YouTube.",
+            "pausa lo que está sonando en youtube",
+            "Poné pausa al video que estoy mirando en YouTube.",
+            "Poné en pausa el video que estaba viendo en YouTube",
         ):
             with self.subTest(command=command):
                 action = parse_command(command)
@@ -39,6 +44,28 @@ class ParseCommandTests(unittest.TestCase):
                 self.assertEqual(action.intent, Intent.BROWSER_NAVIGATION)
                 self.assertEqual(action.tool_name, "stop_youtube")
                 self.assertEqual(action.arguments, {})
+
+    def test_does_not_turn_a_negated_pause_into_an_action(self) -> None:
+        self.assertIsNone(parse_command("No pauses YouTube"))
+
+    def test_parses_youtube_resume_without_turning_it_into_a_search(self) -> None:
+        for command in (
+            "Reproducí lo que estaba mirando en YouTube.",
+            "Seguí reproduciendo lo que estoy viendo en YouTube",
+            "Reanudá el video de YouTube",
+            "Poné play al video de YouTube",
+        ):
+            with self.subTest(command=command):
+                action = parse_command(command)
+
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.BROWSER_NAVIGATION)
+                self.assertEqual(action.tool_name, "resume_youtube")
+                self.assertEqual(action.arguments, {})
+
+    def test_does_not_turn_a_negated_resume_into_an_action(self) -> None:
+        self.assertIsNone(parse_command("No reanudes el video de YouTube"))
 
     def test_rejects_invalid_youtube_playback_queries(self) -> None:
         self.assertIsNone(parse_command("poné en youtube   "))
@@ -53,6 +80,67 @@ class ParseCommandTests(unittest.TestCase):
             action.arguments,
             {"query": "qué tan malo puedo ser"},
         )
+
+    def test_parses_spotify_tracks_playlists_and_searches_as_distinct_actions(self) -> None:
+        cases = {
+            "Poné la canción Qué tan malo puedo ser en Spotify.": (
+                "play_spotify_track",
+                {"query": "Qué tan malo puedo ser"},
+            ),
+            "Poné en Spotify As It Was": (
+                "play_spotify_track",
+                {"query": "As It Was"},
+            ),
+            "Poné mi playlist 7 W7 en Spotify": (
+                "play_spotify_playlist",
+                {"name": "7 W7"},
+            ),
+            "Reproducí en Spotify mi playlist 7W7": (
+                "play_spotify_playlist",
+                {"name": "7W7"},
+            ),
+            "Buscá la canción As It Was en Spotify": (
+                "search_spotify_track",
+                {"query": "As It Was"},
+            ),
+        }
+        for command, (tool_name, arguments) in cases.items():
+            with self.subTest(command=command):
+                action = parse_command(command)
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.MEDIA_PLAYBACK)
+                self.assertEqual(action.tool_name, tool_name)
+                self.assertEqual(action.arguments, arguments)
+
+    def test_spotify_controls_never_become_searches(self) -> None:
+        cases = {
+            "Pausá Spotify": "pause_spotify",
+            "Poné pausa a la canción de Spotify": "pause_spotify",
+            "Seguí reproduciendo Spotify": "resume_spotify",
+            "Poné play a Spotify": "resume_spotify",
+            "Siguiente canción en Spotify": "next_spotify",
+            "Volvé a la canción anterior en Spotify": "previous_spotify",
+        }
+        for command, tool_name in cases.items():
+            with self.subTest(command=command):
+                action = parse_command(command)
+                self.assertIsNotNone(action)
+                assert action is not None
+                self.assertEqual(action.intent, Intent.MEDIA_PLAYBACK)
+                self.assertEqual(action.tool_name, tool_name)
+                self.assertEqual(action.arguments, {})
+
+        self.assertIsNone(parse_command("No pauses Spotify"))
+        self.assertIsNone(parse_command("No sigas reproduciendo Spotify"))
+
+    def test_parses_and_bounds_spotify_volume(self) -> None:
+        action = parse_command("Poné el volumen de Spotify al 35 %")
+        self.assertIsNotNone(action)
+        assert action is not None
+        self.assertEqual(action.tool_name, "set_spotify_volume")
+        self.assertEqual(action.arguments, {"percent": "35"})
+        self.assertIsNone(parse_command("Poné el volumen de Spotify al 101 %"))
 
     def test_parses_each_supported_site(self) -> None:
         expected_urls = {

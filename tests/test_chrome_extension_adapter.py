@@ -9,7 +9,7 @@ from desktop_agent.browser_bridge import (
     BrowserBridgeState,
     BrowserKind,
 )
-from desktop_agent.browser_contract import BrowserLimits, BrowserStepStatus
+from desktop_agent.browser_contract import BrowserErrorCode, BrowserLimits, BrowserStepStatus
 from desktop_agent.browser_preferences import PreferredBrowser
 from desktop_agent.chrome_extension_adapter import (
     create_youtube_extension_adapter,
@@ -77,6 +77,86 @@ class FakeBridge:
 
 
 class ChromeExtensionAdapterTests(unittest.TestCase):
+    def test_resumes_and_verifies_current_managed_video_without_search(self) -> None:
+        bridge = FakeBridge()
+        adapter = create_youtube_extension_adapter(
+            bridge,
+            BrowserKind.CHROME,
+            logging.getLogger(self.id()),
+            limits=BrowserLimits(
+                verification_window_seconds=0.01,
+                minimum_playback_progress_seconds=0.001,
+            ),
+        )
+
+        resumed = adapter.resume_current_playback()
+        verified = adapter.verify_playback()
+
+        self.assertIs(resumed.status, BrowserStepStatus.SUCCESS)
+        self.assertIs(verified.status, BrowserStepStatus.SUCCESS)
+        self.assertEqual(
+            bridge.operations,
+            [
+                BrowserBridgeOperation.YOUTUBE_START,
+                BrowserBridgeOperation.YOUTUBE_READ,
+                BrowserBridgeOperation.YOUTUBE_READ,
+            ],
+        )
+
+    def test_known_worker_errors_preserve_their_diagnostic_category(self):
+        for code, expected in (
+            ("no_results", BrowserErrorCode.NO_RESULTS),
+            ("video_unavailable", BrowserErrorCode.CONTENT_UNAVAILABLE),
+            ("consent_required", BrowserErrorCode.CONSENT_REQUIRED),
+            ("navigation_timeout", BrowserErrorCode.TIMEOUT),
+            ("playback_timeout", BrowserErrorCode.TIMEOUT),
+            ("playback_not_started", BrowserErrorCode.PLAYBACK_NOT_CONFIRMED),
+            ("tab_muted", BrowserErrorCode.PLAYBACK_NOT_CONFIRMED),
+            ("search_dom_unavailable", BrowserErrorCode.DOM_UNAVAILABLE),
+            ("private_unknown_error", BrowserErrorCode.DOM_UNAVAILABLE),
+        ):
+            with self.subTest(code=code):
+                bridge = FakeBridge()
+                bridge.request = lambda *_: BrowserBridgeResponse("test", False, None, code)
+                adapter = create_youtube_extension_adapter(bridge, BrowserKind.CHROME, logging.getLogger(self.id()))
+                result = adapter.open_site("youtube")
+                self.assertIs(result.error.code, expected)
+                self.assertNotIn("private", result.error.message)
+
+    def test_success_flag_without_observed_pause_is_not_a_successful_stop(self):
+        for state in ({}, {"paused": False}, {"paused": 1}, None):
+            with self.subTest(state=state):
+                bridge = FakeBridge()
+                original_request = bridge.request
+                bridge.request = lambda *_: BrowserBridgeResponse("test", True, state, None)
+                adapter = create_youtube_extension_adapter(bridge, BrowserKind.CHROME, logging.getLogger(self.id()))
+                self.assertIs(adapter.close().status, BrowserStepStatus.FAILURE)
+                bridge.request = original_request
+                self.assertIs(adapter.close().status, BrowserStepStatus.SUCCESS)
+
+    def test_failed_stop_can_be_retried_without_reporting_false_success(self):
+        from desktop_agent.tools.browser_automation import YouTubePlaybackTool
+        bridge = FakeBridge()
+        original_request = bridge.request
+        stops = []
+        def request(operation, arguments, expected):
+            if operation is BrowserBridgeOperation.YOUTUBE_STOP:
+                stops.append(operation)
+                if len(stops) == 1:
+                    return BrowserBridgeResponse("test", False, None, "playback_not_stopped")
+            return original_request(operation, arguments, expected)
+        bridge.request = request
+        logger = logging.getLogger(self.id())
+        tool = YouTubePlaybackTool(lambda: create_youtube_extension_adapter(
+            bridge, BrowserKind.CHROME, logger,
+            limits=BrowserLimits(verification_window_seconds=.01, minimum_playback_progress_seconds=.001)), logger)
+        self.assertTrue(tool("synthetic music").success)
+        self.assertFalse(tool.stop().success)
+        self.assertTrue(tool.has_active_session)
+        self.assertTrue(tool.stop().success)
+        self.assertFalse(tool.has_active_session)
+        self.assertEqual(len(stops), 2)
+
     def test_runs_semantic_flow_and_pauses_without_closing_browser(self) -> None:
         bridge = FakeBridge()
         adapter = create_youtube_extension_adapter(

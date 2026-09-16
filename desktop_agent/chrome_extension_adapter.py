@@ -10,6 +10,10 @@ from desktop_agent.browser_bridge import (
 from desktop_agent.browser_contract import (
     BrowserAdapterDependencies,
     BrowserDomUnavailableError,
+    BrowserNoResultsError,
+    BrowserContentUnavailableError,
+    BrowserPlaybackNotConfirmedError,
+    BrowserConsentRequiredError,
     BrowserLimits,
     PageSnapshot,
     PlaybackSnapshot,
@@ -35,14 +39,15 @@ class _ExtensionPlaybackResource:
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
         response = self._bridge.request(
             BrowserBridgeOperation.YOUTUBE_STOP,
             {},
             self._browser,
         )
-        if not response.success:
+        if (not response.success or not isinstance(response.payload, dict)
+                or response.payload.get("paused") is not True):
             raise OSError("La extensión no pudo detener la reproducción.")
+        self._closed = True
 
 
 class ChromeExtensionPage:
@@ -103,7 +108,19 @@ class ChromeExtensionPage:
             response = self._bridge.request(operation, arguments, self._browser)
         except BrowserBridgeError as error:
             raise BrowserDomUnavailableError from error
-        if not response.success or response.payload is None:
+        if not response.success:
+            # Códigos locales cerrados: no se expone texto libre recibido del worker.
+            condition = {
+                "no_results": BrowserNoResultsError,
+                "video_unavailable": BrowserContentUnavailableError,
+                "consent_required": BrowserConsentRequiredError,
+                "navigation_timeout": TimeoutError,
+                "playback_timeout": TimeoutError,
+                "playback_not_started": BrowserPlaybackNotConfirmedError,
+                "tab_muted": BrowserPlaybackNotConfirmedError,
+            }.get(response.error_code, BrowserDomUnavailableError)
+            raise condition()
+        if response.payload is None:
             raise BrowserDomUnavailableError
         return response.payload
 

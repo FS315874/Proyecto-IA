@@ -11,6 +11,7 @@ from desktop_agent.interpretation import (
     InterpretationStatus,
 )
 from desktop_agent.models import ToolResult
+from desktop_agent.diagnostics import emit_failure
 
 
 class CommandStage(str, Enum):
@@ -165,6 +166,10 @@ class CommandProcessor:
             emit("Orden cancelada antes de ejecutar acciones.")
             result = self._finished(False, messages, interpretation, started_at, progress)
             return replace(result, cancelled=True)
+
+        if interpretation.status is not InterpretationStatus.SUCCESS:
+            emit_failure(self._logger, interpretation.status.value, "interpretation",
+                         stage="interpreting", duration_ms=interpretation.duration_ms)
 
         if interpretation.status is InterpretationStatus.BUDGET_EXCEEDED:
             self._logger.info("Status: AI_BUDGET_EXCEEDED")

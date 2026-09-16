@@ -1,8 +1,11 @@
 """Ventana de configuración; no prueba la API ni inicia grabaciones al abrirse."""
 
+import webbrowser
+
 from desktop_agent.app_settings import AppSettings, AppSettingsStore, SettingsError
 from desktop_agent.audio_capture import AudioCaptureError
 from desktop_agent.audio_devices import list_input_devices
+from desktop_agent.spotify import SPOTIFY_REDIRECT_URI
 
 
 def show_settings(parent, settings: AppSettings, store: AppSettingsStore, on_saved) -> None:
@@ -57,26 +60,86 @@ def show_settings(parent, settings: AppSettings, store: AppSettingsStore, on_sav
     selected = tk.StringVar(value=initial)
     ttk.Combobox(body, textvariable=selected, values=tuple(choices), state="readonly", width=65).grid(row=12, column=0, sticky="ew", pady=5)
     ttk.Label(body, text=device_error or "La selección se resuelve de nuevo al conectar o desconectar dispositivos.", wraplength=580).grid(row=13, column=0, sticky="w")
+    spotify_box = ttk.LabelFrame(body, text="Spotify", padding=10)
+    spotify_box.grid(row=14, column=0, sticky="ew", pady=(10, 0))
+    spotify_box.columnconfigure(0, weight=1)
+    spotify_enabled = tk.BooleanVar(value=settings.spotify_enabled)
+    ttk.Checkbutton(
+        spotify_box,
+        text="Controlar reproducción con mi cuenta de Spotify Premium",
+        variable=spotify_enabled,
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Label(spotify_box, text="Client ID de Spotify Developer").grid(
+        row=1, column=0, sticky="w", pady=(7, 0)
+    )
+    spotify_client_id = tk.StringVar(value=settings.spotify_client_id or "")
+    ttk.Entry(spotify_box, textvariable=spotify_client_id, width=67).grid(
+        row=2, column=0, sticky="ew", pady=4
+    )
+    ttk.Button(
+        spotify_box,
+        text="Abrir Spotify Developer",
+        command=lambda: webbrowser.open("https://developer.spotify.com/dashboard"),
+    ).grid(row=2, column=1, padx=(8, 0))
+    ttk.Label(
+        spotify_box,
+        text=f"Redirect URI exacta: {SPOTIFY_REDIRECT_URI}",
+        foreground="#475569",
+    ).grid(row=3, column=0, columnspan=2, sticky="w")
+    ttk.Label(spotify_box, text="Dispositivo preferido (opcional, nombre exacto)").grid(
+        row=4, column=0, sticky="w", pady=(7, 0)
+    )
+    spotify_device = tk.StringVar(value=settings.spotify_device_name or "")
+    ttk.Entry(spotify_box, textvariable=spotify_device, width=67).grid(
+        row=5, column=0, sticky="ew", pady=4
+    )
+    spotify_disconnect = tk.BooleanVar(value=False)
+    connected_text = (
+        "Cuenta autorizada. La primera orden renovará la sesión automáticamente."
+        if settings.spotify_refresh_token
+        else "La primera orden abrirá Spotify para que autorices la cuenta una sola vez."
+    )
+    ttk.Label(spotify_box, text=connected_text, wraplength=580).grid(
+        row=6, column=0, columnspan=2, sticky="w"
+    )
+    ttk.Checkbutton(
+        spotify_box,
+        text="Desconectar la cuenta de Spotify guardada",
+        variable=spotify_disconnect,
+        state="normal" if settings.spotify_refresh_token else "disabled",
+    ).grid(row=7, column=0, columnspan=2, sticky="w")
+
     budget_row = ttk.Frame(body)
-    budget_row.grid(row=14, column=0, sticky="w", pady=14)
+    budget_row.grid(row=15, column=0, sticky="w", pady=14)
     ttk.Label(budget_row, text="Tope mensual compartido · USD").pack(side="left", padx=(0, 8))
     budget = tk.StringVar(value=f"{settings.monthly_budget_usd:.2f}")
     ttk.Entry(budget_row, textvariable=budget, width=10).pack(side="left")
-    ttk.Label(body, text="Guardar reinicia el asistente cuando está libre; el consumo acumulado se conserva.", wraplength=580).grid(row=15, column=0, sticky="w")
+    ttk.Label(body, text="Guardar reinicia el asistente cuando está libre; el consumo acumulado se conserva.", wraplength=580).grid(row=16, column=0, sticky="w")
     error_text = tk.StringVar()
-    ttk.Label(body, textvariable=error_text, foreground="#b91c1c", wraplength=580).grid(row=16, column=0, sticky="w", pady=8)
+    ttk.Label(body, textvariable=error_text, foreground="#b91c1c", wraplength=580).grid(row=17, column=0, sticky="w", pady=8)
 
     def save() -> None:
         try:
             credential = None if forget.get() else (key.get().strip() or settings.api_key)
             if (ai.get() or voice.get()) and not credential:
                 raise SettingsError("Agregá una clave o desactivá IA y transcripción de voz.")
+            client_id = spotify_client_id.get().strip() or None
+            device_name = spotify_device.get().strip() or None
+            spotify_token = (
+                None
+                if spotify_disconnect.get() or client_id != settings.spotify_client_id
+                else settings.spotify_refresh_token
+            )
             updated = AppSettings(
                 ai_enabled=ai.get(), voice_enabled=voice.get(),
                 monthly_budget_usd=float(budget.get().replace(",", ".")),
                 microphone=choices[selected.get()], auto_send_voice=autosend.get(),
                 voice_hotkey=hotkey.get(), remember_key=remember.get() and credential is not None,
                 api_key=credential,
+                spotify_enabled=spotify_enabled.get(),
+                spotify_client_id=client_id,
+                spotify_device_name=device_name,
+                spotify_refresh_token=spotify_token,
             )
             store.save(updated)
         except (SettingsError, ValueError) as error:
@@ -87,7 +150,7 @@ def show_settings(parent, settings: AppSettings, store: AppSettingsStore, on_sav
         on_saved(updated)
 
     buttons = ttk.Frame(body)
-    buttons.grid(row=17, column=0, sticky="e")
+    buttons.grid(row=18, column=0, sticky="e")
     ttk.Button(buttons, text="Cancelar", command=window.destroy).pack(side="left", padx=6)
     ttk.Button(buttons, text="Guardar y aplicar", command=save).pack(side="left")
     entry.focus_set()
