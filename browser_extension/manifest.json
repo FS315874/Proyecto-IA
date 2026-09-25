@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Desktop Agent Browser Bridge",
+  "description": "Control semántico local y limitado para Desktop Agent.",
+  "version": "0.20.0",
+  "minimum_chrome_version": "102",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvpNn9ihMHRF5V6u9TUAw1nXzGwgl/+gsvknx+RP+w4GOMNULy5AEz3dRnAaMsbst/64UBtesKcePC0+/572LT1c3X5zRxWjlogj+pZFvHUfOBaerLZ/uMkXeCRlGX3d1c3raPedCDKR+tmwi0kARsSLdPGCfKHsJ9PLb287AvSmG3/04tMIW93VuZt2QKTnZHTsqkCTioKgeLOJkEMclaCpAXfEBbRXcyMMFFqDluhD4Bcv0SXwu4oqeGp8JxOr+ejsUfnw7H40EsVIl97OS4uX0ZjnDpl86z9QIAMVFu6rILQna1VlQSeq+MqSpZwyBzUx9efjNlpgm6niLX+5gwQIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  }
+}

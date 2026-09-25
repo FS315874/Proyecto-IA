@@ -1,0 +1,1387 @@
+# Roadmap operativo de implementación
+
+> Estado del documento: guía de ejecución aprobada para trabajo incremental.
+> Estado comprobado del producto: v0.20 y el recorrido real de YouTube aceptados;
+> voz, cancelación y atajos mantienen checkpoints de `POLISH-08`.
+> Última revisión: 2026-09-25.
+
+## 1. Propósito
+
+Este documento convierte la visión de Desktop Agent en una secuencia operativa de
+trabajo. Su objetivo es que una persona o un asistente de IA pueda continuar el
+proyecto con instrucciones breves como `seguí al siguiente paso`, sin depender de
+copiar un prompt nuevo para cada incremento.
+
+No reemplaza el estado real del repositorio. Antes de implementar un paso se deben
+comprobar el código, los tests, `pyproject.toml`, el README, la documentación y Git.
+Si este documento contradice la implementación, prevalece la evidencia del
+repositorio y se corrige la guía antes de continuar.
+
+Este roadmap no autoriza por sí mismo:
+
+- avanzar más de una capacidad principal por versión;
+- instalar dependencias o adoptar servicios externos;
+- solicitar, guardar o utilizar credenciales;
+- ejecutar pruebas con efectos reales;
+- crear commits, hacer push o abrir Pull Requests;
+- realizar acciones sensibles sobre la computadora;
+- omitir una pausa marcada como decisión o prueba del usuario.
+
+## 2. Visión del producto
+
+Desktop Agent busca convertirse progresivamente en un agente personal de escritorio
+que reciba objetivos por texto o voz, comprenda el contexto, proponga un plan,
+ejecute herramientas controladas, verifique resultados y reutilice procedimientos
+aprobados.
+
+La visión puede resumirse así:
+
+```text
+Texto / voz / escritorio / celular
+                 |
+                 v
+       Intérprete y orquestador
+                 |
+                 v
+        Plan estructurado local
+                 |
+                 v
+     Política, permisos y límites
+                 |
+        +--------+--------+---------+----------+
+        |        |        |         |          |
+        v        v        v         v          v
+       API    navegador  sistema  accesibilidad  visión
+        |        |        |         |          |
+        +--------+--------+---------+----------+
+                 |
+                 v
+        Verificación observable
+                 |
+                 v
+       Resultado, log y memoria
+```
+
+La IA aporta interpretación, planificación, selección de estrategias y recuperación.
+El código local conserva herramientas, argumentos permitidos, riesgo, confirmaciones,
+presupuestos, ejecución y verificación. El texto generado por un modelo nunca se
+ejecuta directamente como shell, ruta, selector, código o acción de escritorio.
+
+## 3. Resultado deseado a largo plazo
+
+La visión se considera materializada cuando el sistema pueda, dentro de límites
+explícitos:
+
+- entender distintas formulaciones de un mismo objetivo;
+- ejecutar comandos conocidos por un camino rápido y determinista;
+- descomponer objetivos nuevos en pasos estructurados;
+- abrir y controlar aplicaciones permitidas;
+- automatizar flujos web con DOM antes de recurrir a visión;
+- utilizar accesibilidad antes de coordenadas de mouse;
+- comprobar el resultado observable de cada acción relevante;
+- detenerse ante ambigüedad, pérdida de foco o estado no verificable;
+- pedir confirmación para acciones sensibles;
+- cancelar tareas y respetar límites de tiempo, acciones y reintentos;
+- reutilizar recorridos aprobados sin guardar secretos ni depender de coordenadas;
+- recibir órdenes desde una interfaz de escritorio, voz y una futura interfaz móvil;
+- delegar desarrollo de software a herramientas de código en vez de escribir
+  simulando teclas dentro de un editor.
+
+No se promete control universal ni éxito perfecto en cualquier aplicación. Cada
+capacidad debe ser demostrable en un alcance conocido antes de generalizarse.
+
+## 4. Principios que no se deben perder
+
+### 4.1 IA como orquestador, no como ejecutor irrestricto
+
+El agente no será una lista cerrada de frases, pero tampoco permitirá ejecución libre.
+Un modelo podrá combinar primitivas seguras y proponer planes. El núcleo local deberá
+validar cada propuesta y traducirla a herramientas registradas.
+
+### 4.2 Camino rápido para tareas conocidas
+
+El parser determinista, los adaptadores específicos y las recetas verificadas evitan
+usar un modelo en cada clic. La IA se utiliza cuando aporta interpretación,
+planificación o recuperación, no como requisito artificial para cada paso.
+
+### 4.3 Automatización híbrida
+
+Orden de preferencia:
+
+1. API o integración directa;
+2. comandos seguros y controlados del sistema;
+3. DOM y Playwright;
+4. APIs de accesibilidad;
+5. visión, mouse y teclado.
+
+### 4.4 Verificación antes de declarar éxito
+
+Abrir un proceso, enviar una tecla o no recibir una excepción no prueba que el objetivo
+se haya cumplido. Cada herramienta debe definir el resultado observable que puede
+comprobar y declarar lo que no puede confirmar.
+
+### 4.5 Incrementos verticales
+
+Cada versión agrega una capacidad principal y termina con una demostración útil. El
+roadmap completo describe la dirección; no autoriza implementar módulos futuros antes
+de cerrar la versión activa.
+
+### 4.6 Interfaces reemplazables
+
+CLI, aplicación de escritorio, voz, ChatGPT Remote y una futura aplicación móvil son
+formas de enviar un mismo `UserCommand`. Ninguna interfaz debe contener la lógica de
+seguridad ni acoplar el núcleo a un proveedor concreto.
+
+## 5. Forma de trabajo con instrucciones breves
+
+### 5.1 Comandos de colaboración
+
+El usuario podrá utilizar estas frases sin preparar otro prompt:
+
+| Instrucción | Comportamiento esperado |
+| --- | --- |
+| `estado` | Inspeccionar y resumir el estado comprobable sin escribir archivos. |
+| `seguí` | Ejecutar solo el próximo paso habilitado de este roadmap. |
+| `seguí al siguiente paso` | Equivalente a `seguí`. |
+| `probemos` | Ejecutar o guiar el checkpoint de prueba pendiente. |
+| `repetí las validaciones` | Repetir las pruebas documentadas del paso actual. |
+| `pausá` | Detener trabajo nuevo y entregar estado y siguiente paso. |
+| `cerrá la versión` | Verificar Definition of Done y preparar el cierre; no hacer commit. |
+| `mostrame el plan` | Resumir pasos completos, actual y siguientes. |
+
+`seguí` no significa avanzar indefinidamente. Autoriza un solo paso operativo. Si el
+paso termina en un checkpoint, el asistente debe detenerse y devolver el control.
+
+### 5.2 Protocolo obligatorio al recibir `seguí`
+
+1. Leer `AGENTS.md` y este documento.
+2. Ejecutar inspecciones no destructivas de Git y de los archivos relevantes.
+3. Identificar el primer paso `PENDIENTE` cuyas dependencias estén `COMPLETADAS`.
+4. Comprobar que no exista una decisión, permiso o prueba manual pendiente.
+5. Resumir objetivo, límite, archivos esperados, riesgos y supuestos.
+6. Marcar solo el paso elegido como `EN_PROGRESO`.
+7. Implementar exclusivamente ese paso.
+8. Agregar o actualizar tests proporcionales al cambio.
+9. Ejecutar las validaciones pertinentes.
+10. Revisar el diff y preservar cambios ajenos.
+11. Actualizar el estado y la evidencia del paso.
+12. Detenerse con el resultado y el próximo checkpoint.
+
+Si la evidencia muestra que el paso ya estaba implementado, no se repite: se valida,
+se documenta la evidencia y se selecciona el siguiente paso en un turno posterior.
+
+### 5.3 Estados permitidos
+
+| Estado | Significado |
+| --- | --- |
+| `PENDIENTE` | No existe evidencia suficiente de implementación. |
+| `EN_PROGRESO` | Es el único paso que se está trabajando. |
+| `LISTO_PARA_PRUEBA` | Implementado y automatizado; falta una prueba manual acordada. |
+| `ESPERA_DECISION` | Requiere una elección o autorización del usuario. |
+| `BLOQUEADO` | Existe un impedimento concreto documentado. |
+| `COMPLETADO` | Criterios y validaciones del paso están aprobados. |
+
+Nunca puede haber más de un paso `EN_PROGRESO`.
+
+### 5.4 Tipos de checkpoint
+
+- `AUTOMATICO`: el asistente puede implementar y validar localmente.
+- `DECISION_USUARIO`: se deben presentar alternativas y detenerse.
+- `PRUEBA_USUARIO`: el usuario debe probar un comportamiento visible o sensible.
+- `PERMISO_EXTERNO`: credenciales, dependencias, red, publicación o servicios.
+- `CIERRE_VERSION`: revisión completa y formato de cierre de `AGENTS.md`.
+
+## 6. Estado maestro
+
+| Versión | Capacidad principal | Estado actual | Próximo hito |
+| --- | --- | --- | --- |
+| v0.1 | Ejecutor y apertura de URLs | `COMPLETADO` | Ninguno. |
+| v0.2 | Lanzador seguro de aplicaciones | `COMPLETADO` | Ninguno. |
+| v0.3 | Interpretación de lenguaje natural | `COMPLETADO` | Ninguno. |
+| v0.4 | Automatización de navegador | `COMPLETADO` | Ninguno. |
+| v0.4.1 | Consola local mínima | `COMPLETADO` | Ninguno. |
+| v0.5 | Tareas de varios pasos | `COMPLETADO` | Ninguno. |
+| v0.6 | Observación mediante screenshots | `COMPLETADO` | Ninguno. |
+| v0.7 | Interpretación visual | `COMPLETADO` | Ninguno. |
+| v0.8 | Mouse y teclado con límites | `COMPLETADO` | Ninguno. |
+| v0.9 | Bucle observar-planificar-actuar-evaluar | `COMPLETADO` | Ninguno. |
+| v0.10 | Recuperación y memoria procedural | `COMPLETADO` | Ninguno. |
+| v0.11 | Confirmaciones y permisos completos | `COMPLETADO` | Ninguno. |
+| v0.12 | Aplicación de escritorio y servicio local | `COMPLETADO` | Ninguno. |
+| v0.13 | Entrada por voz | `COMPLETADO` | Ninguno. |
+| v0.14 | Control remoto propio | `COMPLETADO` | Ninguno. |
+| v0.15 | Navegador habitual y Spotify | `PRUEBA_USUARIO` | Instalar y probar extensión. |
+| v0.16 | Aplicaciones locales habituales | `PRUEBA_USUARIO` | Probar aperturas visibles. |
+| v0.17 | Uso cotidiano y auditoría | `PRUEBA_USUARIO` | Validar micrófono, atajo y extensión con la versión nueva. |
+| v0.18 | Control oficial de Spotify | `COMPLETADO` | OAuth persistente, reproducción y controles reales aprobados. |
+| v0.19 | Proyectos y documentos aprobados | `COMPLETADO` | Proyecto y documentación abiertos correctamente el 2026-09-19. |
+| v0.20 | Volumen por dispositivo de salida | `COMPLETADO` | HyperX al 35 % aceptado en la aplicación real el 2026-09-24. |
+
+Los estados históricos de núcleo/demo no implican que esas capacidades estén todas
+conectadas a la GUI. La aceptación vigente y los límites reales están en
+[V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); el roadmap no autoriza futuros módulos.
+
+## 7. v0.3 — Interpretación de lenguaje natural
+
+### Objetivo de versión
+
+Aceptar formulaciones variadas para capacidades ya existentes sin permitir que el
+modelo invente herramientas, URLs, ejecutables, argumentos, permisos o riesgo.
+
+### Fuera de alcance
+
+- planes de varios pasos;
+- navegación dentro de páginas;
+- screenshots, visión, mouse o teclado;
+- memoria de recorridos;
+- control remoto propio;
+- nuevas acciones sensibles.
+
+### Pasos
+
+#### NLI-01 — Contrato de propuestas
+
+- Estado: `COMPLETADO`.
+- Evidencia: `ActionProposal`, versión de esquema e intents de propuesta.
+- Validación: tests de forma, tipos, versión y coherencia.
+
+#### NLI-02 — Intérprete híbrido con proveedor falso
+
+- Estado: `COMPLETADO`.
+- Evidencia: prioridad del parser determinista, fallback opcional y fallo seguro.
+- Validación: proveedor falso y rechazo de salida inválida o no soportada.
+
+#### NLI-03 — Decisión de proveedor y privacidad
+
+- Estado: `COMPLETADO`.
+- Checkpoint resuelto: `DECISION_USUARIO` y `PERMISO_EXTERNO`, opción A
+  aprobada por el usuario el 2026-08-24.
+- Decisión adoptada:
+  - proveedor OpenAI mediante Responses API;
+  - modelo `gpt-5.6-luna` con razonamiento `none` para priorizar latencia y costo;
+  - Structured Outputs con el esquema estricto y versionado de `ActionProposal`;
+  - SDK oficial de Python `openai` frente a un cliente HTTP propio, manteniendo sus
+    tipos fuera del dominio; licencia Apache-2.0 y dependencias transitivas a
+    revalidar para la versión exacta antes de instalar;
+  - integración deshabilitada por defecto y credencial solo desde
+    `OPENAI_API_KEY`, sin registrarla ni guardarla en el repositorio;
+  - el parser determinista conserva prioridad; se permite como máximo una llamada
+    sin reintento automático por comando no reconocido;
+  - timeout inicial objetivo de 5 segundos y salida limitada al objeto de propuesta;
+  - `store=false` y solicitudes independientes, sin estado conversacional.
+- Datos permitidos en una solicitud:
+  - texto de la orden actual;
+  - instrucción mínima de clasificación;
+  - claves canónicas del catálogo permitido;
+  - esquema JSON de la propuesta.
+- Datos excluidos: screenshots, archivos, logs, historial, variables de entorno,
+  rutas, contenido de ventanas y cualquier otro estado del escritorio.
+- Política de fallo: timeout, red, límite, rechazo o salida inválida termina sin
+  construir ni ejecutar una acción.
+- Costo de referencia al 2026-08-24: USD 0,20 por millón de tokens de entrada y
+  USD 1,20 por millón de tokens de salida; registrar consumo cuando el proveedor lo
+  informe y mantener un presupuesto explícito antes de una prueba real.
+- Privacidad conocida: OpenAI declara que los datos de API no se usan para entrenar
+  modelos salvo participación voluntaria; los registros de monitoreo pueden conservar
+  contenido hasta 30 días bajo la configuración predeterminada.
+- Fuentes consultadas:
+  - https://developers.openai.com/api/docs/models/gpt-5.6-luna
+  - https://developers.openai.com/api/reference/cli/resources/responses/methods/create
+  - https://developers.openai.com/api/docs/guides/structured-outputs
+  - https://developers.openai.com/api/docs/guides/your-data
+  - https://developers.openai.com/api/docs/libraries
+- Resultado: decisión registrada sin instalar el SDK, solicitar o guardar una clave,
+  implementar el adaptador ni realizar llamadas de red.
+
+#### NLI-04 — Configuración segura del proveedor
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `ProviderConfig` y `load_provider_config` independientes del SDK;
+  - opt-in mediante `DESKTOP_AGENT_AI_ENABLED`, deshabilitado por defecto;
+  - credencial solo desde `OPENAI_API_KEY`, no conservada al estar deshabilitado;
+  - timeout obligatorio, con 5 segundos por defecto y máximo de 30;
+  - errores tipados que identifican la variable sin repetir su valor;
+  - `ProposalProvider` continúa siendo la interfaz entre dominio y adaptador.
+- Validación: 11 tests unitarios de configuración válida e inválida, credencial
+  ausente, integración deshabilitada, invariantes y redacción de secretos.
+- Límite: no se instaló el SDK, no se implementó el adaptador y no hubo red.
+
+#### NLI-05 — Adaptador real de propuestas
+
+- Estado: `COMPLETADO`.
+- Dependencia: NLI-04.
+- Checkpoint resuelto: el usuario autorizó expresamente el 2026-08-24 agregar
+  `openai==3.3.1` y descargarlo en un entorno temporal para pruebas sin llamadas
+  reales.
+- Evaluación realizada el 2026-08-24:
+  - versión actual observada en el registro: `openai==3.3.1`;
+  - metadata del wheel: Python `>=3.10` y licencia `Apache-2.0`;
+  - dependencias directas: `anyio`, `httpx2`, `jiter`, `pydantic`, `sniffio` y
+    `typing-extensions`;
+  - resolución comprobada en Python 3.12/Windows: 13 paquetes transitivos y 14
+    wheels en total, aproximadamente 4,95 MB descargados;
+  - licencias declaradas del conjunto: Apache-2.0, MIT, BSD-3-Clause, PSF-2.0 y
+    la expresión dual MIT o Apache-2.0;
+  - compatibilidad: tanto el proyecto como el SDK requieren Python 3.10 o posterior;
+  - mantenimiento: es el SDK oficial recomendado por la documentación de OpenAI y
+    `3.3.1` era la versión más reciente informada por el registro;
+  - alternativa descartada: un cliente HTTP propio reduciría dependencias, pero
+    agregaría autenticación, transporte y decodificación que el SDK ya mantiene;
+  - riesgo pendiente: no se ejecutó un escáner de vulnerabilidades dedicado; se
+    deberán revisar la instalación resuelta y sus cambios antes del cierre de v0.3.
+- Evidencia:
+  - `openai==3.3.1` declarado como dependencia exacta en `pyproject.toml`;
+  - `OpenAIProposalProvider` realiza como máximo una `responses.create`;
+  - `store=false`, `max_retries=0`, timeout por solicitud, razonamiento `none` y
+    límites de 1.000 caracteres de entrada y 128 tokens de salida;
+  - instrucciones mínimas, claves canónicas y JSON Schema estricto sin datos del
+    escritorio;
+  - el adaptador devuelve JSON no confiable y nunca construye una `Action`;
+  - timeout, red, inicialización, respuesta incompleta o vacía y JSON inválido
+    terminan en `ProposalProviderError` sin detalles sensibles;
+  - la versión desconocida y demás incoherencias se rechazan luego en el dominio.
+- Validación:
+  - 11 tests nuevos con cliente falso y sin red;
+  - smoke test con el SDK temporal y `responses.create` reemplazado por un mock;
+  - suite completa: 57 tests aprobados;
+  - ninguna API key ni llamada real.
+- Limitación del paso al completarse: no se ejecutó un escáner de vulnerabilidades
+  dedicado y todavía no había integración con la CLI; NLI-06 resolvió luego la
+  segunda limitación.
+
+#### NLI-06 — Integración híbrida con la CLI
+
+- Estado: `COMPLETADO`.
+- Dependencia: NLI-05.
+- Evidencia:
+  - `desktop_agent.cli.build_interpreter` carga la configuración una vez y construye
+    `HybridInterpreter` con el adaptador solo ante un opt-in válido;
+  - `process_command` usa el intérprete inyectable y conserva sus valores de retorno,
+    mensajes y ejecución mediante `ActionExecutor`;
+  - el modo interactivo reutiliza una misma instancia de intérprete;
+  - la configuración inválida emite un aviso genérico y conserva el modo
+    determinista, sin repetir valores ni crear el proveedor;
+  - `OpenAIProposalProvider` difiere la importación e inicialización del cliente SDK
+    hasta el primer fallback real.
+- Validación:
+  - 4 tests nuevos de integración de CLI con dobles y sin red;
+  - un comando exacto ejecuta el camino de v0.2 sin invocar al proveedor;
+  - una propuesta válida sigue pasando por validación y ejecutor locales;
+  - un fallo externo no ejecuta ninguna herramienta;
+  - una configuración inválida no rompe un comando determinista;
+  - suite completa: 61 tests aprobados;
+  - ninguna API key real ni llamada externa.
+- Limitación del paso al completarse: todavía no registraba origen, duración ni
+  resultado estructurado; NLI-07 resolvió luego esa limitación.
+
+#### NLI-07 — Observabilidad de interpretación
+
+- Estado: `COMPLETADO`.
+- Dependencia: NLI-06.
+- Evidencia:
+  - `InterpretationResult` distingue camino `deterministic` o `external`, estados
+    `success`, `unsupported`, `provider_error` e `invalid_proposal`, duración y si el
+    proveedor está configurado;
+  - `interpret_detailed` devuelve metadata estructurada y `interpret` conserva la
+    interfaz compatible `Action | None`;
+  - el reloj es inyectable para medir duración sin esperas reales en tests;
+  - `ProposalProviderResult` transporta únicamente payload no confiable, contadores
+    numéricos validados y costo opcional;
+  - el adaptador extrae `response.usage`, ignora telemetría incoherente y conserva
+    solo los contadores numéricos incluso si la respuesta termina en error;
+  - el costo se estima para `gpt-5.6-luna` con las tarifas oficiales consultadas el
+    2026-08-24;
+  - la CLI reemplaza `User: <orden>` por eventos que no incluyen prompt, respuesta,
+    credencial ni contexto del escritorio.
+- Validación:
+  - caminos determinista y externo y todos los estados comprobados con dobles;
+  - duración comprobada mediante reloj falso;
+  - uso válido, uso inválido y costo aproximado comprobados sin SDK ni red;
+  - logs comprobados sin orden completa, JSON de respuesta, error externo ni API key
+    ficticia;
+  - suite completa: 63 tests aprobados;
+  - ninguna API key real ni llamada externa.
+- Limitación del paso al completarse: el costo era solo por llamada y no persistía ni
+  aplicaba un límite; NLI-07A resolvió esa parte. Las tarifas siguen requiriendo
+  revalidación antes de una prueba real.
+
+#### NLI-07A — Presupuesto y consumo mensual local
+
+- Estado: `COMPLETADO`.
+- Dependencia: NLI-07.
+- Solicitud del usuario: conteo persistente de tokens y dinero con límite mensual
+  modificable, inicialmente USD 1,00.
+- Evidencia:
+  - `DESKTOP_AGENT_AI_MONTHLY_BUDGET_USD` vale USD 1,00 por defecto y acepta valores
+    entre USD 0,01 y USD 1.000;
+  - `MonthlyUsageLedger` conserva historial por mes calendario local, solicitudes,
+    tokens de entrada, salida, caché y total, costo estimado, solicitudes sin medición
+    y reservas pendientes;
+  - el archivo se ubica fuera del repositorio en
+    `%LOCALAPPDATA%\DesktopAgent\ai_usage.json`, con fallback a
+    `~/.desktop_agent/ai_usage.json`;
+  - el registro no contiene orden, respuesta, credencial ni contexto del escritorio;
+  - `BudgetedProposalProvider` persiste una reserva conservadora de USD 0,01 antes de
+    cada llamada y la sustituye por el costo estimado informado al finalizar;
+  - una solicitud sin telemetría conserva la reserva como costo conservador y una
+    reserva pendiente sobrevive un cierre inesperado;
+  - presupuesto agotado, archivo corrupto, lectura o escritura fallida bloquean el
+    fallback sin ejecutar una acción;
+  - la CLI muestra el acumulado después de cada fallback y lo registra sin contenido
+    sensible.
+- Validación:
+  - acumulación de dos llamadas, persistencia entre instancias y cambio de mes;
+  - conservación del historial y de reservas pendientes;
+  - bloqueo antes de invocar al proveedor y fallo seguro ante archivo corrupto;
+  - salida y logs mensuales comprobados con dobles y archivos temporales;
+  - suite completa: 74 tests aprobados;
+  - ninguna API key real ni llamada externa.
+- Limitaciones:
+  - el costo es una estimación local basada en `response.usage` y las tarifas
+    documentadas, no el importe final de la factura;
+  - el mecanismo presupone una única instancia activa; no coordina procesos paralelos;
+  - la reserva de USD 0,01 puede dejar sin usar hasta un centavo del límite mensual.
+
+#### NLI-08 — Aceptación y cierre de v0.3
+
+- Estado: `COMPLETADO`.
+- Checkpoints: `PRUEBA_USUARIO` y `CIERRE_VERSION`.
+- Decisión del usuario: aceptación simulada solicitada el 2026-08-24; sin red, API
+  key, costo ni apertura real de aplicaciones.
+- Evidencia:
+  - `abrir youtube` siguió el camino determinista sin invocar al proveedor;
+  - `poneme YouTube`, `quiero hacer una cuenta en la calculadora` y
+    `abrime el editor Visual Studio Code` produjeron únicamente acciones del catálogo;
+  - `abrime Spotify` fue rechazado por estar fuera del catálogo;
+  - proveedor deshabilitado y fallo simulado terminaron sin efectos;
+  - el acumulado mensual fue visible y el presupuesto bloqueó antes del proveedor;
+  - seis pruebas de aceptación nuevas y suite completa de 80 tests aprobadas;
+  - README, documentación, banner y versión `0.3.0` sincronizados;
+  - terceros y limitaciones declarados; no se creó commit.
+- Limitación de aceptación: el adaptador no fue probado contra la API real ni se
+  verificó la apertura observable de ventanas; ambos límites quedan explícitos.
+
+## 8. v0.4 — Automatización de navegador
+
+### Objetivo de versión
+
+Controlar un flujo web acotado mediante DOM y una herramienta registrada, con
+verificación observable. La demostración candidata es buscar y reproducir contenido
+en YouTube sin depender de mouse o visión.
+
+### Pasos
+
+#### WEB-01 — Propuesta técnica y dependencia
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `DECISION_USUARIO` y `PERMISO_EXTERNO`.
+- Decisión aprobada por el usuario el 2026-08-25:
+  - Playwright `1.62.0`, API síncrona y versión fijada;
+  - únicamente Chromium administrado por Playwright;
+  - contexto temporal no persistente, sin login ni perfil personal;
+  - navegador visible para la demostración con audio y ejecución headless solo para
+    pruebas que no necesiten reproducción audible;
+  - Chrome estable con perfil separado queda como fallback sujeto a evidencia de un
+    problema de codecs; conectar el perfil personal o usar CDP queda fuera.
+- Evidencia:
+  - licencia Apache-2.0 y Python >=3.10 confirmados en la metadata oficial;
+  - compatibilidad comprobada con el Python 3.13 local;
+  - dependencia declarada en `pyproject.toml`;
+  - Chrome for Testing 151.0.7922.34, shell headless, FFmpeg y verificador instalados;
+  - Firefox y WebKit ausentes; caché local observada de aproximadamente 701 MiB;
+  - no se lanzó ni controló ningún navegador.
+- Riesgos aceptados:
+  - cada actualización de Playwright puede exigir descargar binarios compatibles;
+  - el flujo real dependerá del DOM, consentimiento, anuncios y políticas de YouTube;
+  - la reproducción audible debe verificarse y no puede inferirse de un clic.
+
+#### WEB-02 — Contrato del adaptador de navegador
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `BrowserAdapter` expone solo `open_site`, `search`, `select_first_result`,
+    `start_playback`, `read_playback` y `close`;
+  - la interfaz pública recibe claves de sitio y consultas, nunca URL, selector,
+    JavaScript ni argumentos de lanzamiento;
+  - destinos resueltos desde el catálogo y consultas normalizadas con máximo de 200
+    caracteres;
+  - resultados, observaciones y errores son estructuras validadas e inmutables;
+  - límites de navegación, operación, verificación y flujo son positivos y acotados;
+  - navegador, contexto, página, reloj y espera son puertos inyectables;
+  - 17 tests específicos y suite completa de 97 tests aprobados, sin navegador real.
+- Límite: WEB-02 no implementa Playwright, selectores, herramienta registrada ni
+  navegación; eso comienza de forma acotada en WEB-03.
+
+#### WEB-03 — Herramienta de navegación segura
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `BrowserSecurityPolicy` limita la sesión a YouTube, una página y un contexto no
+    persistente, sin descargas, extensiones ni acceso a archivos;
+  - `SafeBrowserAdapter` aplica allowlist, orden de operaciones, tiempos acotados,
+    errores estructurados y cierre idempotente sobre puertos inyectables;
+  - `BrowserNavigationTool` recibe una clave de catálogo, puede registrarse en
+    `ActionExecutor` y siempre intenta cerrar contexto y navegador;
+  - los logs conservan intención, destino canónico, duración, resultado y código de
+    error sin guardar consultas, títulos ni detalles internos del backend;
+  - 16 tests específicos y suite completa de 113 tests aprobados, sin navegador real.
+- Límite: WEB-03 no agrega selectores, backend Playwright, registro en la CLI ni el
+  flujo real de YouTube; eso corresponde a WEB-04.
+
+#### WEB-04 — Flujo vertical de YouTube
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `YouTubePlaybackTool` recibe una consulta estructurada, la normaliza antes de
+    crear el navegador y ejecuta como máximo cuatro operaciones semánticas;
+  - `YouTubePlaywrightPage` mantiene selectores fijos, trata la consulta como datos y
+    espera marcadores conocidos del DOM;
+  - solo admite resultados `/watch` del host permitido y reconstruye una URL canónica
+    con un identificador de video validado;
+  - consentimiento, ausencia de resultados, DOM incompatible y timeout producen
+    errores estructurados y redactados;
+  - la fábrica crea un contexto temporal sin descargas, permisos ni service workers,
+    y limpia contexto, navegador y runtime incluso ante un arranque parcial;
+  - 14 tests nuevos y suite completa de 127 tests aprobados, sin navegador real.
+- Límite: se comprueba el estado al iniciar y quitar el silencio, pero
+  todavía no el avance de `currentTime`; esa verificación pertenece a WEB-05.
+
+#### WEB-05 — Verificación de reproducción
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - `VERIFY_PLAYBACK` observa dos snapshots separados por una espera inyectable de un
+    segundo;
+  - ambas observaciones deben conservar el host permitido y el mismo identificador
+    de video `/watch`;
+  - se exige `paused=false`, `muted=false`, volumen positivo cuando está disponible y
+    un avance mínimo local de 0,1 segundos;
+  - la herramienta sólo informa éxito después de verificar y siempre cierra recursos;
+  - pausa, silencio, volumen cero, cambio de contenido, host externo o progreso
+    insuficiente devuelven `PLAYBACK_NOT_CONFIRMED` sin datos privados;
+  - 4 tests nuevos y suite completa de 131 tests aprobados, sin navegador real.
+- Límite: el DOM no permite comprobar el mezclador de Windows, el dispositivo de
+  salida ni los parlantes; la verificación sólo demuestra estado y avance del video.
+
+#### WEB-06 — Tests del adaptador
+
+- Estado: `COMPLETADO`.
+- Evidencia:
+  - la matriz separa contrato, adaptador, backend DOM e integración local;
+  - el flujo integrado compone ejecutor, herramienta, fábrica, adaptador y backend con
+    un runtime Playwright falso;
+  - el caso positivo alcanza `VERIFY_PLAYBACK`, usa espera inyectada y cierra contexto,
+    navegador y runtime;
+  - el caso de consentimiento falla de forma estructurada, no espera y también cierra
+    todos los recursos;
+  - reloj y espera se validan antes de iniciar el runtime;
+  - 2 tests nuevos y suite completa de 133 tests aprobados, sin navegador real.
+- E2E omitido: sigue siendo opcional y separado porque requiere red, Chromium real y
+  depende de cambios externos de YouTube.
+
+#### WEB-07 — Prueba manual
+
+- Estado: `COMPLETADO` el 2026-08-25.
+- Checkpoint: `PRUEBA_USUARIO`.
+- Probar consulta válida, sin resultados, contenido no disponible y cancelación.
+- Medir tiempo total y separar interpretación, inicio del navegador y navegación.
+- Evidencia:
+  - un runner manual separado usa casos fijos o una consulta pública interactiva,
+    Chromium visible, red y un contexto efímero; siempre intenta cerrar y no registra
+    el texto buscado;
+  - el caso válido completó las cinco operaciones: arranque 1,47 s, navegación y
+    verificación 7,15 s, total 9,01 s;
+  - una segunda consulta elegida por el usuario también pasó: arranque 3,83 s,
+    navegación y verificación 7,10 s, total 11,38 s;
+  - la interpretación quedó como no aplicable porque el flujo no está en la CLI;
+  - YouTube devolvió un resultado para la consulta aleatoria de `no-results`, por lo
+    que la condición externa no se pudo reproducir;
+  - `Ctrl+C` interrumpió el escenario de cancelación, pero `close()` informó
+    `backend_failure`;
+  - el contrato actual no permite elegir un video específico para reproducir de
+    manera confiable el caso de contenido no disponible;
+  - el DOM confirmó reproducción, ausencia de mute y progreso, no salida física de
+    audio;
+  - la corrección conserva una sesión exitosa en `YouTubePlaybackTool` hasta `stop()`;
+    los fallos siguen cerrando de inmediato y una consulta inválida no interrumpe la
+    reproducción activa;
+  - el runner espera Enter en lugar de usar `Ctrl+C`; una repetición real permaneció
+    activa 8 min 43 s y cerró limpiamente en 0,29 s tras la señal explícita;
+  - cero resultados se valida con su marcador DOM y código `NO_RESULTS`;
+  - contenido no disponible se detecta mediante un marcador fijo y devuelve
+    `CONTENT_UNAVAILABLE` sin detalles externos;
+  - los negativos se reproducen localmente porque forzarlos contra YouTube sería
+    inestable o exigiría debilitar la interfaz pública;
+  - 4 tests nuevos y suite completa de 137 tests aprobados sin navegador real.
+- Decisión: WEB-07 aprobado; habilitar WEB-08.
+
+#### WEB-08 — Cierre de v0.4
+
+- Estado: `COMPLETADO` el 2026-08-25.
+- Checkpoint: `CIERRE_VERSION`.
+- Evidencia:
+  - `pyproject.toml`, el paquete y el banner declaran `0.4.0`;
+  - la CLI registra `play_youtube` y `stop_youtube` sin iniciar Chromium durante la
+    construcción;
+  - el parser acepta formas deterministas acotadas, normaliza la consulta como datos
+    y la rechaza antes de cualquier efecto si está vacía o supera 200 caracteres;
+  - el fast-path no invoca el proveedor de IA ni registra la consulta;
+  - el modo interactivo conserva la sesión entre órdenes y `salir` intenta cerrarla;
+  - el modo de una instrucción espera Enter antes del cierre;
+  - 7 tests nuevos y suite completa de 144 tests aprobados sin navegador real;
+  - la prueba real de WEB-07 demostró reproducción audible, persistencia y cierre.
+- Limitaciones aceptadas:
+  - no se comprueba la salida física mediante DOM;
+  - los selectores dependen de YouTube;
+  - `Ctrl+C` puede afectar Playwright en Windows; se prefieren las detenciones
+    estructuradas;
+  - la interfaz gráfica, voz y control remoto pertenecen a incrementos posteriores.
+
+## 8.1. v0.4.1 — Local Control Console
+
+### Objetivo de versión
+
+Eliminar a Codex como intermediario del uso cotidiano mediante un proceso local
+persistente y una interfaz mínima para enviar órdenes, observar estado y detener el
+agente. No agrega voz, acceso remoto, visión ni automatización general.
+
+### Pasos
+
+#### UI-01 — Decisión de arquitectura
+
+- Estado: `COMPLETADO`.
+- Checkpoint resuelto: `DECISION_USUARIO`; el usuario aprobó la opción A el
+  2026-08-25 y autorizó continuar automáticamente hasta v0.14.
+- Decisión: Tkinter/ttk, sin servidor ni puerto local. Un proceso Python es dueño del
+  ejecutor, intérprete y navegador; la UI vive en el hilo principal y se comunica con
+  un worker persistente mediante una cola local.
+- Instancia única: lock de archivo mantenido por el sistema y acotado al usuario.
+- Cierre: cancela pendientes, solicita detención, cierra Playwright en su hilo
+  propietario y libera el lock. La distribución embebida de Python no trae Tcl/Tk,
+  por lo que se verificó una instalación completa de CPython 3.13.15 con Tk 8.6.
+- Evidencia: `docs/V0.4.1_ARCHITECTURE.md`.
+
+#### UI-02 — Controlador local persistente
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `AUTOMATICO`.
+- Mantener herramientas y sesión de navegador sin reconstruir el agente por orden.
+- Aceptar únicamente comandos estructurados a través del mismo núcleo y ejecutor.
+- Evidencia: `CommandProcessor` desacoplado y `LocalAgentController` con worker único,
+  cola acotada por entrada y eventos estructurados.
+
+#### UI-03 — Interfaz mínima
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `AUTOMATICO`.
+- Incluir entrada, ejecutar, estado, resultado, detener y control de emergencia.
+- Evidencia: `TkDesktopAgentApp` y comando `python -m desktop_agent --gui`.
+
+#### UI-04 — Latencia, uso y límites visibles
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `AUTOMATICO`.
+- Mostrar tiempo extremo a extremo, etapa activa, tokens, costo y presupuesto mensual.
+- Evidencia: la UI muestra etapa, total, cola, ejecución y snapshot mensual agregado.
+
+#### UI-05 — Prueba de usuario
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `PRUEBA_USUARIO`.
+- Comparar latencia fría y caliente y comprobar ejecución, reemplazo, detención y salida.
+- Validación: tests deterministas comprobaron recepción, ejecución serial, latencia,
+  reemplazo de uso, detención, emergencia y cierre. Un smoke con Tk/Tcl real creó y
+  cerró la ventana. La automatización visible adicional no obtuvo a tiempo permiso de
+  control de Windows y se omitió sin dejar el proceso abierto.
+
+#### UI-06 — Cierre de v0.4.1
+
+- Estado: `COMPLETADO`.
+- Checkpoint: `CIERRE_VERSION`.
+- Resultado: versión `0.4.1`, 154 pruebas locales, documentación sincronizada y sin
+  llamadas externas de IA.
+
+## 9. v0.5 — Tareas de varios pasos
+
+### Objetivo de versión
+
+Permitir que la IA proponga un plan estructurado y limitado compuesto únicamente por
+acciones conocidas, manteniendo validación y ejecución separadas.
+
+### Secuencia
+
+1. `PLAN-01` — `COMPLETADO`: `TaskPlan`, `PlanStep`, estados y resultados son
+   contratos inmutables y versionados.
+2. `PLAN-02` — `COMPLETADO`: máximo cinco acciones y treinta segundos; un plan
+   inválido se rechaza antes del primer efecto.
+3. `PLAN-03` — `COMPLETADO`: cada acción se reconstruye y valida contra catálogo,
+   intención, herramienta registrada, argumentos, riesgo y confirmación.
+4. `PLAN-04` — `COMPLETADO`: ejecución secuencial sin reintentos y resultados
+   estructurados por paso y por plan.
+5. `PLAN-05` — `COMPLETADO`: token de cancelación comprobado entre pasos.
+6. `PLAN-06` — `COMPLETADO`: logs de estado, herramienta y duración sin argumentos
+   ni texto de la orden.
+7. `PLAN-07` — `COMPLETADO`: cobertura de planes válidos, inválidos, demasiado
+   largos, cancelación, timeout y fallo intermedio sin efectos parciales inválidos.
+8. `PLAN-08` — `COMPLETADO`: demostración local de dos pasos web y comando seguro
+   real de detención; 172 pruebas locales aprobadas, sin llamadas de IA.
+
+No se permiten todavía bucles libres, reintentos autónomos ni nuevas herramientas
+inventadas por el modelo.
+
+## 10. v0.6 — Observación mediante screenshots
+
+### Objetivo de versión
+
+Capturar estado visual acotado para verificar o preparar una acción sin enviar por
+defecto el escritorio completo a un servicio externo.
+
+### Secuencia
+
+1. `OBS-01` — `COMPLETADO`: contratos de ventana, región, frame y metadatos.
+2. `OBS-02` — `COMPLETADO`: interfaz reemplazable y backend nativo de ventana.
+3. `OBS-03` — `COMPLETADO`: límites de resolución, frecuencia, cantidad y retención.
+4. `OBS-04` — `COMPLETADO`: identificadores opacos ligados a ventana y revisión.
+5. `OBS-05` — `COMPLETADO`: invalidación de observaciones ante cambio de estado.
+6. `OBS-06` — `COMPLETADO`: regiones sensibles reemplazadas localmente por negro.
+7. `OBS-07` — `COMPLETADO`: once pruebas con frames ficticios y sin escritorio real.
+8. `OBS-08` — `COMPLETADO`: captura real de una ventana propia con datos ficticios,
+   redacción e invalidación verificadas sin persistir ni enviar la imagen.
+
+## 11. v0.7 — Interpretación visual
+
+### Objetivo de versión
+
+Convertir una observación visual minimizada en una propuesta estructurada, sin
+permitir que el modelo ejecute directamente acciones.
+
+### Secuencia
+
+1. `VIS-01` — `COMPLETADO`: OpenAI Responses con `gpt-5.6-luna`, doble opt-in,
+   presupuesto mensual y `store=False`; decisión documentada sin llamada real.
+2. `VIS-02` — `COMPLETADO`: esquema cerrado, roles, cajas normalizadas, confianza
+   mínima de 0,80 y resultado `UNSUPPORTED`.
+3. `VIS-03` — `COMPLETADO`: solo se codifica y entrega el frame de la observación.
+4. `VIS-04` — `COMPLETADO`: JSON, tipos, límites, cajas y telemetría revalidados.
+5. `VIS-05` — `COMPLETADO`: nombres accesibles fusionados localmente por rol e IoU;
+   campos sensibles se eliminan y el texto accesible no se envía al proveedor.
+6. `VIS-06` — `COMPLETADO`: instrucciones detectadas por proveedor o validación local
+   producen `CONTENT_INSTRUCTION` sin elementos ni acciones.
+7. `VIS-07` — `COMPLETADO`: evaluación estructural reproducible sobre tres regiones
+   ficticias; precisión, recall e IoU de 1,0 para dos elementos esperados.
+8. `VIS-08` — `COMPLETADO`: 23 pruebas nuevas y demo simulada sin red ni captura real;
+   precisión real del modelo explícitamente no medida.
+
+## 12. v0.8 — Mouse y teclado con límites
+
+### Objetivo de versión
+
+Actuar sobre una ventana objetivo verificada, con foco comprobado, límites estrictos
+y capacidad de emergencia.
+
+### Requisitos previos obligatorios
+
+- ventana exacta y observable;
+- acción estructurada validada;
+- presupuesto de inputs;
+- cancelación probada;
+- atajo o botón de emergencia;
+- prohibición de automatizar terminales, autenticación, seguridad y campos secretos;
+- preferencia por elementos accesibles antes que coordenadas.
+
+### Secuencia
+
+1. `INPUT-01` — `COMPLETADO`: puerto inyectable, acciones `CAUTION`, confirmación
+   de un uso, presupuesto y canal de emergencia obligatorio.
+2. `INPUT-02` — `COMPLETADO`: handle, proceso, tamaño, visibilidad y ventana exacta
+   se verifican antes y después del foco.
+3. `INPUT-03` — `COMPLETADO`: botones Win32 se resuelven por rol e intersección y se
+   activan mediante el control accesible dirigido.
+4. `INPUT-04` — `COMPLETADO`: campos editables requieren foco exacto observado; el
+   texto se entrega y verifica sin registrarlo.
+5. `INPUT-05` — `COMPLETADO`: coordenadas solo como fallback explícito al centro de
+   un elemento ligado a una observación vigente.
+6. `INPUT-06` — `COMPLETADO`: pérdida de foco, proceso/tamaño distinto, modal,
+   contexto bloqueado, campo secreto o emergencia detienen el flujo.
+7. `INPUT-07` — `COMPLETADO`: catorce pruebas con dobles cubren confirmación,
+   cancelación, presupuesto, foco, fallos, accesibilidad y fallback.
+8. `INPUT-08` — `COMPLETADO`: demo real autorizada sobre una ventana Win32 propia;
+   escritura y clic accesibles verificados con `Ctrl+Alt+Esc` armado.
+
+## 13. v0.9 — Bucle observar-planificar-actuar-evaluar
+
+### Objetivo de versión
+
+Permitir recuperación acotada entre pasos sin transformar el agente en un bucle
+infinito o irrestricto.
+
+### Límites mínimos
+
+- tiempo total;
+- cantidad de observaciones;
+- cantidad de acciones;
+- reintentos por causa;
+- herramientas permitidas;
+- condición de éxito;
+- condición de abandono;
+- cancelación en todo momento.
+
+### Secuencia
+
+1. `LOOP-01` — `COMPLETADO`: máquina explícita con estados y transiciones finitas.
+2. `LOOP-02` — `COMPLETADO`: puertos independientes para observar, decidir, actuar
+   y evaluar; ninguna fase ejecuta texto de otra.
+3. `LOOP-03` — `COMPLETADO`: evidencia por iteración con IDs, estado, herramienta,
+   fingerprint, resultado, causa, cambio y duración, sin argumentos privados.
+4. `LOOP-04` — `COMPLETADO`: `RETRY` solo admite causas transitorias y tiene máximo
+   por causa; los fallos permanentes se abandonan.
+5. `LOOP-05` — `COMPLETADO`: par estado/fingerprint ejecutado no puede repetirse.
+6. `LOOP-06` — `COMPLETADO`: dos ambigüedades consecutivas terminan el ciclo.
+7. `LOOP-07` — `COMPLETADO`: quince pruebas cubren tiempo, observaciones, acciones,
+   reintentos, allowlist, estado, evidencia, cancelación y errores.
+8. `LOOP-08` — `COMPLETADO`: QA ficticio en memoria completa alta en dos acciones y
+   dos observaciones, con éxito evaluado y cero efectos externos.
+
+## 14. v0.10 — Recuperación y memoria procedural
+
+### Objetivo de versión
+
+Reutilizar procedimientos aprobados y estrategias de recuperación sin reentrenar el
+modelo ni guardar información privada innecesaria.
+
+### Una receta debe incluir
+
+- aplicación y versión o huella pertinente;
+- objetivo canónico;
+- precondiciones;
+- acciones semánticas;
+- verificaciones por paso;
+- estrategia alternativa permitida;
+- fecha y evidencia de la última validación;
+- estado: propuesta, aprobada, obsoleta o deshabilitada.
+
+### Reglas
+
+- no almacenar contraseñas, tokens, contenido privado ni screenshots completos;
+- no aprender automáticamente una receta solo porque no hubo excepción;
+- requerir éxito observable y aprobación antes de reutilizar;
+- invalidar ante cambios de aplicación o selectores;
+- no guardar coordenadas como mecanismo principal.
+
+### Secuencia
+
+1. `RECIPE-01` — `COMPLETADO`: contrato versionado con aplicación, huella, objetivo,
+   precondiciones, pasos semánticos, verificación y estado explícito.
+2. `RECIPE-02` — `COMPLETADO`: propuesta y aprobación separadas; la aprobación exige
+   evidencia de éxito observable, revisión, aplicación y pasos exactos.
+3. `RECIPE-03` — `COMPLETADO`: almacén JSON estricto y atómico que persiste IDs y
+   estructura, nunca argumentos de ejecución, capturas o credenciales.
+4. `RECIPE-04` — `COMPLETADO`: selección solo de recetas aprobadas con huella exacta;
+   cambios de versión o contrato marcan candidatos como obsoletos.
+5. `RECIPE-05` — `COMPLETADO`: runner valida catálogo, precondiciones, parámetros y
+   allowlist completa antes de ejecutar el primer paso.
+6. `RECIPE-06` — `COMPLETADO`: cada acción requiere verificación observable y solo
+   una alternativa declarada para la causa transitoria puede recuperar el paso.
+7. `RECIPE-07` — `COMPLETADO`: fallos de selector, contrato o backend invalidan la
+   receta; logs y evidencia omiten valores de ejecución y detalles internos.
+8. `RECIPE-08` — `COMPLETADO`: veintiuna pruebas y QA ficticio verifican aprobación,
+   persistencia, privacidad, recuperación e invalidación; suite total de 256 casos.
+
+## 15. v0.11 — Confirmaciones y permisos completos
+
+### Objetivo de versión
+
+Permitir acciones distintas de `SAFE` mediante una política explícita, auditable y
+coherente entre interfaz local y futura interfaz remota.
+
+### Secuencia
+
+1. `POLICY-01` — `COMPLETADO`: taxonomía local por efecto con disposiciones `ALLOW`,
+   `CONFIRM` y `BLOCK`, independiente del nombre de herramienta.
+2. `POLICY-02` — `COMPLETADO`: credenciales, seguridad, código arbitrario, borrado
+   irreversible y transacciones financieras están siempre bloqueados.
+3. `POLICY-03` — `COMPLETADO`: reglas de capacidad fijan intents, herramientas,
+   argumentos, destino, riesgo y necesidad de confirmación.
+4. `POLICY-04` — `COMPLETADO`: solicitud inmediata ligada por SHA-256 a acción,
+   argumentos, destino, capacidad y vencimiento; el UI puede mostrar el destino.
+5. `POLICY-05` — `COMPLETADO`: aprobación emite un token opaco de un uso que el
+   `ActionExecutor` valida y consume atómicamente antes del efecto.
+6. `POLICY-06` — `COMPLETADO`: rechazo, timeout, cancelación, canal no habilitado,
+   challenge incorrecto y acción obsoleta fallan de forma estructurada.
+7. `POLICY-07` — `COMPLETADO`: pruebas con threads demuestran una sola aprobación y
+   un solo efecto ante carreras; repetición y confirmación obsoleta se rechazan.
+8. `POLICY-08` — `COMPLETADO`: logs omiten destino, argumentos, challenge y errores
+   privados; dieciocho pruebas nuevas y QA ficticio llevan la suite a 274 casos.
+
+Hasta completar esta versión, las capacidades anteriores deben permanecer en
+escenarios seguros, aislados o de prueba.
+
+## 16. v0.12 — Aplicación de escritorio y servicio local
+
+### Objetivo de versión
+
+Ofrecer una interfaz visible y un proceso local controlado sin mover lógica de dominio
+fuera del núcleo.
+
+### Alcance inicial
+
+- entrada de texto;
+- historial de tareas y estados;
+- confirmaciones;
+- cancelar y detener;
+- indicador de herramienta activa;
+- resultado y evidencia;
+- inicio manual del servicio;
+- comportamiento seguro al cerrar sesión o bloquear el equipo.
+
+La ejecución permanente al iniciar Windows requiere una decisión separada y no debe
+habilitarse de forma silenciosa.
+
+### Secuencia
+
+1. `UI-01` — `COMPLETADO`: `DesktopAgentService` encapsula controlador, historial,
+   permisos y ciclo de vida sin mover dominio a Tkinter ni abrir un socket.
+2. `UI-02` — `COMPLETADO`: historial acotado en memoria conserva tarea, estado,
+   etapa, herramienta, resultado y evidencia observable; nunca se persiste.
+3. `UI-03` — `COMPLETADO`: panel de confirmación muestra efecto, riesgo y destino;
+   aprobar o rechazar usa el contrato exacto y de un uso de v0.11.
+4. `UI-04` — `COMPLETADO`: cancelación individual de cola, stop, emergencia y cierre
+   comparten el servicio; una fase activa solo cede en su límite seguro.
+5. `UI-05` — `COMPLETADO`: la ventana muestra herramienta activa, resultado,
+   evidencia, latencia, tokens, costo y presupuesto.
+6. `UI-06` — `COMPLETADO`: el monitor Win32 detecta escritorio bloqueado o incierto,
+   suspende y cancela pendientes; reanudar exige sesión disponible y acción manual.
+7. `UI-07` — `COMPLETADO`: inicio solo mediante `--gui`, lock por usuario, cierre
+   idempotente y sin autostart, escucha de red ni transporte remoto.
+8. `UI-08` — `COMPLETADO`: dieciséis pruebas nuevas y smoke con Tk 8.6 real validan
+   servicio, UI, permisos y sesión con datos ficticios; suite total de 290 casos.
+
+## 17. v0.13 — Entrada por voz
+
+### Objetivo de versión
+
+Transformar audio en el mismo `UserCommand` utilizado por CLI y GUI.
+
+### Secuencia
+
+1. `VOICE-01` — `COMPLETADO`: se eligió `System.Speech` local; el audio no se guarda,
+   sale del equipo, usa credenciales ni genera costo.
+2. `VOICE-02` — `COMPLETADO`: cada captura requiere el botón y dura como máximo diez
+   segundos; no existe escucha permanente o proceso de voz previo al gesto.
+3. `VOICE-03` — `COMPLETADO`: la transcripción se normaliza, limita a 500 caracteres,
+   muestra en un campo editable y requiere envío explícito al pipeline común.
+4. `VOICE-04` — `COMPLETADO`: una orden vocal nunca resuelve una confirmación pendiente;
+   el servicio conserva la decisión local exacta de v0.11.
+5. `VOICE-05` — `COMPLETADO`: botón de cancelación termina el helper; las frases exactas
+   cancelar/detener/parar agente solicitan únicamente emergencia.
+6. `VOICE-06` — `COMPLETADO`: UI y eventos separan captura, transcripción y total de
+   voz; interpretación y ejecución conservan la latencia de servicio existente.
+7. `VOICE-07` — `COMPLETADO`: catorce pruebas cubren silencio, baja confianza, frase
+   incompleta, timeout, esquema, cancelación, privacidad e integración.
+8. `VOICE-08` — `COMPLETADO`: QA con Tk real y backend falso valida edición, envío y
+   cancelación verbal. Se descarta palabra de activación por exigir escucha permanente.
+
+## 18. v0.14 — Control remoto propio
+
+### Objetivo de versión
+
+Permitir que una futura interfaz móvil envíe órdenes autenticadas al servicio local,
+reciba estado y confirme acciones sin exponer la computadora directamente a Internet.
+
+### Requisitos
+
+- vinculación explícita de dispositivo;
+- autenticación y cifrado;
+- identificadores únicos y protección contra repetición;
+- conexión saliente o relay seguro;
+- estado online, bloqueado o no disponible;
+- confirmaciones sensibles desde el teléfono;
+- logs y revocación de dispositivos;
+- límites de comandos y cancelación remota;
+- ausencia de secretos dentro de mensajes o URLs.
+
+### Pasos completados
+
+1. `REMOTE-01` — `COMPLETADO`: modelo de amenazas para relay curioso o comprometido,
+   manipulación, replay, dispositivo robado, confirmación vieja, flood y sesión local
+   no disponible. Fallo seguro y revocación son límites obligatorios.
+2. `REMOTE-02` — `COMPLETADO`: pairing fuera de banda con secreto de 256 bits, prueba
+   HMAC y aprobación local; persistencia protegida por DPAPI y expiración a cinco
+   minutos.
+3. `REMOTE-03` — `COMPLETADO`: contrato JSON cerrado y cifrado AES-256-GCM; HKDF
+   deriva claves distintas por dirección y autentica metadata de ruteo.
+4. `REMOTE-04` — `COMPLETADO`: secuencias e IDs persistentes, tolerancia temporal
+   acotada y consumo atómico posterior a autenticar evitan replay y adelanto forjado.
+5. `REMOTE-05` — `COMPLETADO`: gateway al servicio local para orden, estado,
+   cancelación y confirmación exacta, sin acceso directo a herramientas.
+6. `REMOTE-06` — `COMPLETADO`: diez órdenes por minuto, tres pendientes, estados de
+   disponibilidad, resúmenes sin contenido privado y logs sólo de metadata.
+7. `REMOTE-07` — `COMPLETADO`: transporte HTTPS y worker de polling exclusivamente
+   saliente, manual, cancelable, con timeouts y tamaños máximos; no se despliega relay.
+8. `REMOTE-08` — `COMPLETADO`: 32 pruebas y aceptación cifrada local cubren pairing,
+   DPAPI, alteración, replay, confirmación, cancelación, flood, revocación y worker.
+
+ChatGPT Remote y el chat `Desktop Agent Control` funcionan como interfaz provisional
+de experimentación. No forman parte del núcleo ni reemplazan la autenticación de la
+futura solución propia.
+
+## 19. Demostraciones verticales previstas
+
+Las demostraciones validan la capacidad de una versión; no agregan por sí mismas una
+nueva arquitectura.
+
+### 19.1 Reproducir contenido en YouTube
+
+```text
+Usuario: "Poné [consulta] en YouTube"
+Resultado esperado:
+  - consulta interpretada;
+  - navegador controlado;
+  - resultado seleccionado según criterio local;
+  - reproducción comprobada;
+  - título informado;
+  - fallo seguro ante bloqueo o ambigüedad.
+```
+
+### 19.2 Probar alta de cliente
+
+Debe ejecutarse solamente sobre una aplicación y datos de prueba:
+
+- caso válido;
+- campos obligatorios;
+- formato inválido;
+- duplicado;
+- error esperado del backend;
+- comprobación de mensaje y estado final;
+- reporte con evidencia;
+- limpieza mediante fixture o entorno descartable.
+
+Nunca se crean clientes ficticios en producción por asumir que una pantalla es de
+testing.
+
+### 19.3 Delegar desarrollo de software
+
+Una orden de desarrollo debe enrutarse a un agente de código con repositorio, alcance,
+rama, tests y revisión. Desktop Agent no debe escribir código simulando teclas en VS
+Code cuando existen herramientas directas y verificables para editar el repositorio.
+
+## 20. Estrategia transversal de testing
+
+Orden recomendado:
+
+1. unitarios de dominio, validación y política;
+2. unitarios de herramientas con dependencias falsas;
+3. integración local sin red ni efectos reales;
+4. E2E en entorno aislado;
+5. prueba manual visible;
+6. prueba externa opcional y autorizada.
+
+Cada corrección debe reproducir el defecto con una prueba cuando sea razonable. No se
+debilitan tests para obtener una suite verde.
+
+Métricas útiles por escenario:
+
+- resultado correcto;
+- tiempo hasta acuse de recibo;
+- tiempo total;
+- cantidad de llamadas al modelo;
+- observaciones y acciones;
+- reintentos;
+- confirmaciones;
+- costo aproximado;
+- recuperación o causa de abandono.
+
+## 21. Presupuesto de latencia
+
+El proyecto debe distinguir:
+
+- tarea conocida por camino determinista;
+- receta conocida;
+- objetivo nuevo en una aplicación conocida;
+- aplicación nueva que requiere exploración.
+
+No se fija todavía una cifra universal. Cada demostración deberá medir por separado:
+
+```text
+entrada
+  + interpretación
+  + inicio o recuperación de sesión
+  + ejecución
+  + verificación
+  = duración total
+```
+
+Optimizaciones permitidas después de medir:
+
+- mantener el servicio local preparado;
+- reutilizar sesiones seguras;
+- parser determinista antes del modelo;
+- recetas aprobadas;
+- una llamada de IA para planificar y ejecución local del recorrido;
+- esperas por condiciones en vez de pausas fijas;
+- DOM o accesibilidad antes de imágenes;
+- respuesta inmediata de recepción seguida del resultado final.
+
+La velocidad nunca justifica omitir verificaciones o confirmaciones relevantes.
+
+## 22. v0.15 — Navegador habitual y Spotify
+
+### Objetivo de versión
+
+Corregir la diferencia observada entre el navegador habitual y Chromium aislado,
+agregar Spotify y reducir latencia mediante reutilización, sin entregar a una
+extensión control general del navegador.
+
+### Alcance autorizado
+
+El usuario aprobó implementar conjuntamente:
+
+- Spotify web y aplicación nativa cuando esté instalada;
+- navegador preferido configurable;
+- reutilización de una sesión/pestaña;
+- control opt-in de la sesión habitual de Chrome u Opera GX.
+
+### Pasos
+
+| Paso | Tipo | Estado | Evidencia |
+| --- | --- | --- | --- |
+| BROWSER-15-01 — Catálogo Spotify | `AUTOMATICO` | `COMPLETADO` | Parser y launcher cubiertos por tests. |
+| BROWSER-15-02 — Preferencia local | `AUTOMATICO` | `COMPLETADO` | Esquema cerrado, guardado atómico y UI. |
+| BROWSER-15-03 — Reutilización | `AUTOMATICO` | `COMPLETADO` | Adaptador reiniciable y test de segunda reproducción. |
+| BROWSER-15-04 — Puente local | `AUTOMATICO` | `COMPLETADO` | Named pipe autenticado, DPAPI, límites y lock. |
+| BROWSER-15-05 — Extensión | `AUTOMATICO` | `COMPLETADO` | Manifest V3, ID fijo y permisos mínimos verificados. |
+| BROWSER-15-06 — QA simulado | `AUTOMATICO` | `COMPLETADO` | 366 tests, smoke Tk y `browser15_qa_check`. |
+| BROWSER-15-07 — Instalación y prueba real | `PRUEBA_USUARIO` | `PENDIENTE` | Host registrado y extensión conectada en Chrome; falta recorrido completo. |
+
+### Decisiones de seguridad
+
+- La sesión habitual es opt-in y requiere seleccionar Chrome u Opera GX.
+- Una desconexión no provoca fallback oculto hacia otro navegador.
+- La extensión gestiona una sola pestaña y no adopta pestañas arbitrarias.
+- Sólo YouTube permite inspección/inyección; Spotify, Google y GitHub son URLs fijas.
+- No se aceptan scripts, selectores, ejecutables o URLs producidos por un modelo.
+- `detener youtube` pausa la reproducción sin cerrar el navegador habitual.
+
+La decisión completa está en [V0.15_ARCHITECTURE.md](V0.15_ARCHITECTURE.md).
+
+### Estabilización de voz posterior a la auditoría
+
+Esta corrección no abre una versión nueva ni amplía las herramientas disponibles.
+Resuelve el dictado incorrecto observado durante la prueba de v0.15:
+
+- `VOICE-FIX-01` — `COMPLETADO`: se reprodujo la baja precisión de `System.Speech` y
+  se descartaron gramáticas o listas de comandos como solución no universal.
+- `VOICE-FIX-02` — `COMPLETADO`: captura mono acotada con `sounddevice`, detector local
+  de silencio y WAV sólo en memoria; no hay escucha permanente.
+- `VOICE-FIX-03` — `COMPLETADO`: `gpt-transcribe` opt-in recibe el WAV sin prompt,
+  keywords o frases prioritarias y devuelve texto editable.
+- `VOICE-FIX-04` — `COMPLETADO`: voz, texto y visión comparten el límite mensual; la
+  voz reserva costo por duración, no inventa tokens y libera reservas sin envío.
+- `VOICE-FIX-05` — `COMPLETADO`: pruebas de captura, configuración, proveedor,
+  privacidad, costo, sincronización, errores externos y puntuación; suite total de 395
+  casos antes de v0.16.
+- `VOICE-FIX-06` — `COMPLETADO`: llamada real autorizada, transcripción correcta de
+  `Abrir calculadora.` y apertura correcta mediante la GUI.
+
+La decisión completa está en
+[VOICE_TRANSCRIPTION_ARCHITECTURE.md](VOICE_TRANSCRIPTION_ARCHITECTURE.md).
+
+## 23. v0.16 — Aplicaciones locales habituales
+
+### Objetivo de versión
+
+Abrir Steam, VoiceMeeter Banana, League of Legends y God of War Ragnarök mediante el
+mismo pipeline seguro de texto o voz, y no declarar éxito hasta observar un proceso
+esperado.
+
+### Alcance autorizado
+
+- cuatro destinos nuevos en el catálogo cerrado;
+- alias deterministas para el camino frecuente y rápido;
+- interpretación natural existente mediante Luna cuando el usuario inicia el lanzador
+  de voz con opt-in y API key;
+- resolución por rutas y ejecutables fijos;
+- verificación local, acotada y sin shell mediante nombres de proceso permitidos.
+
+No incluye controlar las aplicaciones después de abrir, reproducir Spotify, buscar
+archivos o proyectos ni modificar el volumen de Windows.
+
+### Pasos
+
+| Paso | Tipo | Estado | Evidencia |
+| --- | --- | --- | --- |
+| APP-16-01 — Contrato y catálogo | `AUTOMATICO` | `COMPLETADO` | Entradas fijas, alias y rutas comprobadas localmente. |
+| APP-16-02 — Interpretación natural | `AUTOMATICO` | `COMPLETADO` | Luna sólo propone claves canónicas; lanzador efímero habilita ambos opt-ins. |
+| APP-16-03 — Evidencia de proceso | `AUTOMATICO` | `COMPLETADO` | Tool Help nativo, coincidencia exacta, timeout y fallo seguro. |
+| APP-16-04 — QA simulado | `AUTOMATICO` | `COMPLETADO` | `application16_qa_check` y 401 pruebas aprobadas sin efectos reales. |
+| APP-16-05 — Apertura visible | `PRUEBA_USUARIO` | `PENDIENTE` | Probar los cuatro destinos sin automatizar el inicio de juegos reales. |
+
+La decisión completa está en [V0.16_ARCHITECTURE.md](V0.16_ARCHITECTURE.md).
+
+## 24. v0.17 — Uso cotidiano y auditoría de los recorridos existentes
+
+Autorizada por el usuario para pulir la aplicación y retomar los problemas del chat.
+Capacidad principal: dejar el asistente configurado y operable por texto/voz desde la
+GUI, conservando herramientas, permisos y presupuesto. Sin nuevos paquetes, commits,
+push ni llamadas pagas durante la auditoría.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| POLISH-01 — Auditar código y fallos reportados | `COMPLETADO` | Base de 401 tests aprobada; se agregaron regresiones para defectos no cubiertos. |
+| POLISH-02 — Configuración persistente y clave protegida | `COMPLETADO` | DPAPI, opt-ins, presupuesto editable, precedencia de settings, reinicio controlado. |
+| POLISH-03 — Voz sin vocabulario privilegiado | `COMPLETADO` | Selector estable de dispositivo, medidor, terminar/cancelar, modos revisión/automático. |
+| POLISH-04 — Atajos explícitos | `COMPLETADO` | RegisterHotKey, conflictos y liberación probados; no hook ni escucha permanente. |
+| POLISH-05 — Cancelación y contabilidad | `COMPLETADO` | IA tardía no ejecuta, transcripción descartada no reaparece, rechazo de voz libera reserva. |
+| POLISH-06 — Navegador y aperturas | `COMPLETADO` | Preferencias inmediatas, conexión acotada, tab mute, esperas DOM, Riot Client con argumentos fijos. |
+| POLISH-07 — Regresión, GUI y documentación | `COMPLETADO` | Suite Python, tests JS y runners históricos; detalle en arquitectura v0.17. |
+| POLISH-08 — Aceptación personal | `PRUEBA_USUARIO` | YouTube real aprobado; corregida precedencia app/web de Spotify, pendiente de retest por voz y cancelación. |
+
+Esta era la prioridad al cerrar v0.17; luego el usuario autorizó v0.18 y v0.19 de
+forma separada. `POLISH-08` sigue sin aceptación personal y no se da por cerrado por
+la implementación de capacidades posteriores. Volumen por dispositivo, lectura en
+voz alta y exploración de aplicaciones desconocidas siguen fuera de v0.17.
+
+### Mantenimiento autorizado — historial y fallos de v0.17
+
+Estado al 2026-09-14: implementación local y regresión completas; no es una versión
+nueva. Historial SQLite de los últimos 500 incidentes, GUI/CLI de sólo consulta,
+revisión explícita y datos cerrados sin órdenes/secretos. Se corrigieron preferencia
+no aplicada ocultada por refresco, pérdida de sesión tras parada fallida y errores
+de navegador mal clasificados. La pausa puede consultar la pestaña gestionada aunque
+el video se haya reanudado manualmente, y la limpieza sin reproductor ya no bloquea
+el siguiente recorrido. Búsqueda, pausa y reanudación del video actual tienen intents
+separados para no convertir controles en consultas. **489 Python + 13 JS aprobados.**
+
+La reproducción, pausa y reanudación del mismo video quedaron aceptadas por el
+usuario el 2026-09-25 después de recargar y verificar la integración instalada.
+`POLISH-08` permanece en `PRUEBA_USUARIO` por el retest de voz, cancelación y atajos.
+Diseño, pruebas y checklist: [ERROR_HISTORY.md](ERROR_HISTORY.md).
+
+## 25. v0.18 — Control oficial de Spotify
+
+Autorizada explícitamente por el usuario el 2026-09-14 después del cierre automatizado
+de v0.17, aunque `POLISH-08` continúe como aceptación personal pendiente. Capacidad
+principal: buscar y controlar reproducción de Spotify por API oficial desde los mismos
+pedidos de texto o voz revisada. No agrega control visual libre ni otras aplicaciones.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| SPOTIFY-18-01 — Contrato e intents | `COMPLETADO` | Acciones diferentes para canción, playlist, búsqueda, pausa, reanudación, siguiente, anterior y volumen. |
+| SPOTIFY-18-02 — OAuth PKCE | `COMPLETADO` | Callback loopback fijo, state, verifier, timeout, refresh y un reintento tras 401 mediante dobles. |
+| SPOTIFY-18-03 — Persistencia segura | `COMPLETADO` | Esquema 2 compatible con esquema 1; refresh token cifrado con DPAPI y desconexión explícita. |
+| SPOTIFY-18-04 — Dispositivo | `COMPLETADO` | Preferencia exacta o única computadora; no usa teléfono ni adivina entre computadoras. |
+| SPOTIFY-18-05 — Búsqueda y reproducción | `COMPLETADO` | Canción y playlist resueltas por endpoints fijos; coincidencia ambigua falla segura. |
+| SPOTIFY-18-06 — Controles y verificación | `COMPLETADO` | Pausa/play/salto/volumen y lectura posterior; un estado HTTP exitoso por sí solo no cuenta como éxito. |
+| SPOTIFY-18-07 — QA y documentación | `COMPLETADO` | 127 pruebas específicas, 524 Python y 13 JS aprobadas; arquitectura v0.18 sincronizada. |
+| SPOTIFY-18-08 — Aceptación personal | `COMPLETADO` | OAuth persistente, playlist/canción, pausa, reanudación, saltos y volumen aprobados en Spotify real el 2026-09-16. |
+
+Detalles, decisiones y comandos exactos:
+[V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md).
+
+## 25.1. v0.19 — Proyectos y documentos aprobados
+
+Autorizada por el usuario para continuar el desarrollo de la siguiente capacidad.
+La aceptación de Spotify quedó separada de `POLISH-08`; este último aún requiere
+voz, cancelación y atajos reales. v0.19 abre únicamente carpetas y documentos de texto
+que el usuario registra desde un selector local; no indexa el disco ni ejecuta
+archivos del proyecto.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| TARGETS-19-01 — Catálogo explícito | `COMPLETADO` | Nombre, tipo y ruta local; límite, guardado atómico, rechazo de corrupción y ambigüedad. |
+| TARGETS-19-02 — Ejecución validada | `COMPLETADO` | Parser, IA y planes proponen nombre; ejecutor resuelve y abre sólo en VS Code `.exe`. |
+| TARGETS-19-03 — GUI y QA | `COMPLETADO` | Selector de carpetas/documentos, revocación; 99 pruebas específicas, 539 Python y 13 JS aprobadas. |
+| TARGETS-19-04 — Aceptación personal | `COMPLETADO` | Proyecto IA y Guía IA abiertos correctamente en VS Code el 2026-09-19. |
+
+Diseño, comandos y límites: [V0.19_ARCHITECTURE.md](V0.19_ARCHITECTURE.md).
+
+## 25.2. v0.20 — Volumen por dispositivo de salida
+
+Autorizada después de la aceptación visible de v0.19. Capacidad principal: resolver
+una salida activa de Windows por el nombre dicho por el usuario, establecer un nivel
+acotado y verificarlo por lectura. No cambia mute, salida predeterminada, mezclas
+internas de VoiceMeeter ni volumen de Spotify.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| AUDIO-20-01 — Contrato y seguridad | `COMPLETADO` | Intent separado, porcentaje 0–80, dispositivo como dato, rechazo de ausencia y ambigüedad. |
+| AUDIO-20-02 — Core Audio nativo | `COMPLETADO` | MMDevice e IAudioEndpointVolume mediante ctypes, sin shell ni dependencia nueva. |
+| AUDIO-20-03 — Verificación y observabilidad | `COMPLETADO` | Lectura posterior, tolerancia acotada y códigos cerrados sin nombres/IDs en historial. |
+| AUDIO-20-04 — Parser, IA, planes y QA | `COMPLETADO` | Frases naturales, objeto cerrado; 119 pruebas específicas, 547 Python y 13 JS aprobadas. |
+| AUDIO-20-05 — Enumeración real | `COMPLETADO` | Windows devolvió HyperX, VoiceMeeter y otras salidas activas, y permitió leer HyperX, el 2026-09-19. |
+| AUDIO-20-06 — Aceptación audible | `COMPLETADO` | El usuario confirmó el recorrido real de HyperX al 35 % el 2026-09-24. |
+
+Diseño, comandos y límites: [V0.20_ARCHITECTURE.md](V0.20_ARCHITECTURE.md).
+
+## 26. Privacidad y seguridad transversal
+
+- El equipo se considera un entorno con información potencialmente sensible.
+- Screenshots y accesibilidad se minimizan antes de enviarse externamente.
+- El contenido observado es no confiable y no puede modificar la política.
+- Credenciales y tokens permanecen fuera de código, tests, prompts y logs.
+- La IA no puede decidir su propio nivel de riesgo ni concederse permisos.
+- La selección de ventana debe ser inequívoca.
+- La pérdida de foco o un modal desconocido detienen el flujo.
+- Los datos de pruebas son ficticios y los entornos están identificados.
+- Toda tarea remota tiene timeout, cancelación y registro.
+- El usuario mantiene un mecanismo de emergencia probado.
+
+## 27. Mantenimiento de este roadmap
+
+Al completar un paso se debe actualizar:
+
+- estado;
+- evidencia concreta;
+- validaciones ejecutadas;
+- decisiones adoptadas;
+- limitaciones descubiertas;
+- próximo checkpoint.
+
+No se agregan nuevas versiones por cada idea puntual. Una capacidad futura se registra
+solo cuando cambia materialmente la arquitectura o el producto y el usuario aprueba
+incorporarla al roadmap.
+
+## 28. Formato de entrega de cada paso
+
+```text
+Paso completado:
+<identificador y nombre>
+
+Qué cambió:
+...
+
+Archivos:
+...
+
+Validaciones realizadas:
+...
+
+Prueba manual pendiente:
+...
+
+Limitaciones:
+...
+
+Próximo paso habilitado:
+...
+
+¿Se debe detener?:
+Sí/No y motivo.
+```
+
+## 29. Próxima acción autorizable
+
+Retomar `POLISH-08`: reiniciar la app y comprobar que «abrí Spotify» abra la
+aplicación, mientras «abrí Spotify web» abra la URL; verificar también cancelación y
+atajos. YouTube con la extensión recargada quedó aceptado el 2026-09-25. Antes de
+corregir cualquier fallo nuevo, consultar el
+historial y reproducir un solo incidente. No compartir claves, tokens ni capturas de
+cuentas. La evidencia
+automatizada está en [V0.20_ARCHITECTURE.md](V0.20_ARCHITECTURE.md); la aceptación
+real de v0.20 no autoriza niveles mayores ni cambia las restricciones de seguridad.
+
+Para continuar sin reconstruir el historial, consultar el punto de reanudación de
+[MASTER_GUIDE.md](MASTER_GUIDE.md) y los incidentes con `python -m desktop_agent --errors`.
+Después de la aceptación se acuerda una sola capacidad adicional antes de avanzar
+de versión.

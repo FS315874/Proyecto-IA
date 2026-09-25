@@ -15,6 +15,12 @@ class RiskLevel(str, Enum):
 class Intent(str, Enum):
     OPEN_URL = "OPEN_URL"
     OPEN_APPLICATION = "OPEN_APPLICATION"
+    BROWSER_NAVIGATION = "BROWSER_NAVIGATION"
+    MEDIA_PLAYBACK = "MEDIA_PLAYBACK"
+    DESKTOP_INPUT = "DESKTOP_INPUT"
+    MODIFY_LOCAL_DATA = "MODIFY_LOCAL_DATA"
+    SEND_EXTERNAL_DATA = "SEND_EXTERNAL_DATA"
+    SYSTEM_CHANGE = "SYSTEM_CHANGE"
 
 
 @dataclass(frozen=True)
@@ -36,3 +42,5 @@ class Action:
 class ToolResult:
     success: bool
     message: str
+    error_code: str | None = None
+    error_stage: str | None = None
