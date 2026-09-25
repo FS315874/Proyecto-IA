@@ -71,7 +71,17 @@ class OpenAIPlanProviderTests(unittest.TestCase):
                 "enum"
             ],
         )
+        self.assertIn(
+            "SET_OUTPUT_VOLUME",
+            schema["properties"]["steps"]["items"]["properties"]["intent"][
+                "enum"
+            ],
+        )
+        target_schema = schema["properties"]["steps"]["items"]["properties"]["target"]
+        self.assertEqual(target_schema["anyOf"][2]["required"], ["device", "percent"])
         self.assertIn("video actual", call["instructions"])
+        self.assertIn("Abrir Spotify", call["instructions"])
+        self.assertIn("web o navegador", call["instructions"])
         self.assertNotIn("test-api-key", repr(call))
 
     def test_rejects_invalid_json_empty_input_and_incomplete_response(self) -> None:

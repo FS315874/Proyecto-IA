@@ -29,6 +29,31 @@ class DiagnosticWorkflowTests(unittest.TestCase):
         self.assertEqual(incident.code, "app_missing")
         self.assertNotIn(b"private reason", self.history.path.read_bytes())
 
+    def test_approved_target_failure_keeps_specific_classification(self):
+        executor = ActionExecutor(
+            {
+                "open_approved_target": lambda **_: ToolResult(
+                    False,
+                    "private path",
+                    "target_not_registered",
+                    "target_resolution",
+                ),
+            },
+            self.logger,
+        )
+        result = CommandProcessor(
+            executor,
+            HybridInterpreter(),
+            self.logger,
+        ).execute("abrí el proyecto IA", output=lambda _: None)
+
+        self.assertFalse(result.success)
+        incident, = self.history.list()
+        self.assertEqual(incident.code, "target_not_registered")
+        self.assertEqual(incident.stage, "target_resolution")
+        self.assertEqual(incident.tool, "open_approved_target")
+        self.assertNotIn(b"private path", self.history.path.read_bytes())
+
     def test_unsupported_command_is_recorded_without_command_text(self):
         result = CommandProcessor(ActionExecutor({}, self.logger), HybridInterpreter(), self.logger).execute("un pedido privado", output=lambda _: None)
         self.assertFalse(result.success)

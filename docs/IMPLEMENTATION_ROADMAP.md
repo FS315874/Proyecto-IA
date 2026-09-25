@@ -1,8 +1,9 @@
 # Roadmap operativo de implementación
 
 > Estado del documento: guía de ejecución aprobada para trabajo incremental.
-> Estado comprobado del producto: v0.18 completada; aceptación real de voz y extensión pendiente.
-> Última revisión: 2026-09-16.
+> Estado comprobado del producto: v0.20 y el recorrido real de YouTube aceptados;
+> voz, cancelación y atajos mantienen checkpoints de `POLISH-08`.
+> Última revisión: 2026-09-25.
 
 ## 1. Propósito
 
@@ -213,6 +214,8 @@ Nunca puede haber más de un paso `EN_PROGRESO`.
 | v0.16 | Aplicaciones locales habituales | `PRUEBA_USUARIO` | Probar aperturas visibles. |
 | v0.17 | Uso cotidiano y auditoría | `PRUEBA_USUARIO` | Validar micrófono, atajo y extensión con la versión nueva. |
 | v0.18 | Control oficial de Spotify | `COMPLETADO` | OAuth persistente, reproducción y controles reales aprobados. |
+| v0.19 | Proyectos y documentos aprobados | `COMPLETADO` | Proyecto y documentación abiertos correctamente el 2026-09-19. |
+| v0.20 | Volumen por dispositivo de salida | `COMPLETADO` | HyperX al 35 % aceptado en la aplicación real el 2026-09-24. |
 
 Los estados históricos de núcleo/demo no implican que esas capacidades estén todas
 conectadas a la GUI. La aceptación vigente y los límites reales están en
@@ -1232,12 +1235,12 @@ push ni llamadas pagas durante la auditoría.
 | POLISH-05 — Cancelación y contabilidad | `COMPLETADO` | IA tardía no ejecuta, transcripción descartada no reaparece, rechazo de voz libera reserva. |
 | POLISH-06 — Navegador y aperturas | `COMPLETADO` | Preferencias inmediatas, conexión acotada, tab mute, esperas DOM, Riot Client con argumentos fijos. |
 | POLISH-07 — Regresión, GUI y documentación | `COMPLETADO` | Suite Python, tests JS y runners históricos; detalle en arquitectura v0.17. |
-| POLISH-08 — Aceptación personal | `PRUEBA_USUARIO` | Voz/atajo reales, extensión recargada y reproducción audible; Riot puede requerir atención manual. |
+| POLISH-08 — Aceptación personal | `PRUEBA_USUARIO` | YouTube real aprobado; corregida precedencia app/web de Spotify, pendiente de retest por voz y cancelación. |
 
-El siguiente desarrollo no debe empezar con otro catálogo de frases. Primero cerrar
-POLISH-08; después acordar una capacidad concreta (por ejemplo catálogo de proyectos
-seleccionados por el usuario). Spotify por playlist, volumen por dispositivo, lectura
-en voz alta y exploración de aplicaciones desconocidas siguen fuera de esta versión.
+Esta era la prioridad al cerrar v0.17; luego el usuario autorizó v0.18 y v0.19 de
+forma separada. `POLISH-08` sigue sin aceptación personal y no se da por cerrado por
+la implementación de capacidades posteriores. Volumen por dispositivo, lectura en
+voz alta y exploración de aplicaciones desconocidas siguen fuera de v0.17.
 
 ### Mantenimiento autorizado — historial y fallos de v0.17
 
@@ -1250,9 +1253,9 @@ el video se haya reanudado manualmente, y la limpieza sin reproductor ya no bloq
 el siguiente recorrido. Búsqueda, pausa y reanudación del video actual tienen intents
 separados para no convertir controles en consultas. **489 Python + 13 JS aprobados.**
 
-La última reproducción real falló y no se confirmó la pausa de un video reanudado a
-mano. La corrección local requiere recargar y verificar la extensión instalada con el
-usuario. `POLISH-08` permanece en `PRUEBA_USUARIO`; no se adelanta otro catálogo.
+La reproducción, pausa y reanudación del mismo video quedaron aceptadas por el
+usuario el 2026-09-25 después de recargar y verificar la integración instalada.
+`POLISH-08` permanece en `PRUEBA_USUARIO` por el retest de voz, cancelación y atajos.
 Diseño, pruebas y checklist: [ERROR_HISTORY.md](ERROR_HISTORY.md).
 
 ## 25. v0.18 — Control oficial de Spotify
@@ -1275,6 +1278,41 @@ pedidos de texto o voz revisada. No agrega control visual libre ni otras aplicac
 
 Detalles, decisiones y comandos exactos:
 [V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md).
+
+## 25.1. v0.19 — Proyectos y documentos aprobados
+
+Autorizada por el usuario para continuar el desarrollo de la siguiente capacidad.
+La aceptación de Spotify quedó separada de `POLISH-08`; este último aún requiere
+voz, cancelación y atajos reales. v0.19 abre únicamente carpetas y documentos de texto
+que el usuario registra desde un selector local; no indexa el disco ni ejecuta
+archivos del proyecto.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| TARGETS-19-01 — Catálogo explícito | `COMPLETADO` | Nombre, tipo y ruta local; límite, guardado atómico, rechazo de corrupción y ambigüedad. |
+| TARGETS-19-02 — Ejecución validada | `COMPLETADO` | Parser, IA y planes proponen nombre; ejecutor resuelve y abre sólo en VS Code `.exe`. |
+| TARGETS-19-03 — GUI y QA | `COMPLETADO` | Selector de carpetas/documentos, revocación; 99 pruebas específicas, 539 Python y 13 JS aprobadas. |
+| TARGETS-19-04 — Aceptación personal | `COMPLETADO` | Proyecto IA y Guía IA abiertos correctamente en VS Code el 2026-09-19. |
+
+Diseño, comandos y límites: [V0.19_ARCHITECTURE.md](V0.19_ARCHITECTURE.md).
+
+## 25.2. v0.20 — Volumen por dispositivo de salida
+
+Autorizada después de la aceptación visible de v0.19. Capacidad principal: resolver
+una salida activa de Windows por el nombre dicho por el usuario, establecer un nivel
+acotado y verificarlo por lectura. No cambia mute, salida predeterminada, mezclas
+internas de VoiceMeeter ni volumen de Spotify.
+
+| Paso | Estado | Evidencia |
+| --- | --- | --- |
+| AUDIO-20-01 — Contrato y seguridad | `COMPLETADO` | Intent separado, porcentaje 0–80, dispositivo como dato, rechazo de ausencia y ambigüedad. |
+| AUDIO-20-02 — Core Audio nativo | `COMPLETADO` | MMDevice e IAudioEndpointVolume mediante ctypes, sin shell ni dependencia nueva. |
+| AUDIO-20-03 — Verificación y observabilidad | `COMPLETADO` | Lectura posterior, tolerancia acotada y códigos cerrados sin nombres/IDs en historial. |
+| AUDIO-20-04 — Parser, IA, planes y QA | `COMPLETADO` | Frases naturales, objeto cerrado; 119 pruebas específicas, 547 Python y 13 JS aprobadas. |
+| AUDIO-20-05 — Enumeración real | `COMPLETADO` | Windows devolvió HyperX, VoiceMeeter y otras salidas activas, y permitió leer HyperX, el 2026-09-19. |
+| AUDIO-20-06 — Aceptación audible | `COMPLETADO` | El usuario confirmó el recorrido real de HyperX al 35 % el 2026-09-24. |
+
+Diseño, comandos y límites: [V0.20_ARCHITECTURE.md](V0.20_ARCHITECTURE.md).
 
 ## 26. Privacidad y seguridad transversal
 
@@ -1334,13 +1372,16 @@ Sí/No y motivo.
 
 ## 29. Próxima acción autorizable
 
-Retomar `POLISH-08`: voz, cancelación/atajos y recorrido de YouTube con la extensión
-recargada. Antes, consultar el historial local de errores y fijar una reproducción por
-incidente. No compartir claves, tokens ni capturas de cuentas.
-La evidencia automatizada está en [V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md) y no
-equivale a audio ni autorización reales.
+Retomar `POLISH-08`: reiniciar la app y comprobar que «abrí Spotify» abra la
+aplicación, mientras «abrí Spotify web» abra la URL; verificar también cancelación y
+atajos. YouTube con la extensión recargada quedó aceptado el 2026-09-25. Antes de
+corregir cualquier fallo nuevo, consultar el
+historial y reproducir un solo incidente. No compartir claves, tokens ni capturas de
+cuentas. La evidencia
+automatizada está en [V0.20_ARCHITECTURE.md](V0.20_ARCHITECTURE.md); la aceptación
+real de v0.20 no autoriza niveles mayores ni cambia las restricciones de seguridad.
 
 Para continuar sin reconstruir el historial, consultar el punto de reanudación de
 [MASTER_GUIDE.md](MASTER_GUIDE.md) y los incidentes con `python -m desktop_agent --errors`.
-Después de la aceptación se acuerda una sola
-capacidad adicional antes de avanzar de versión.
+Después de la aceptación se acuerda una sola capacidad adicional antes de avanzar
+de versión.

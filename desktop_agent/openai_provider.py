@@ -49,7 +49,21 @@ def _proposal_schema() -> dict[str, object]:
                 "type": "string",
                 "enum": [intent.value for intent in ProposalIntent],
             },
-            "target": {"type": ["string", "null"]},
+            "target": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "null"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "device": {"type": "string"},
+                            "percent": {"type": "string"},
+                        },
+                        "required": ["device", "percent"],
+                        "additionalProperties": False,
+                    },
+                ],
+            },
         },
         "required": ["schema_version", "intent", "target"],
         "additionalProperties": False,
@@ -64,6 +78,12 @@ def _classification_instructions() -> str:
         f"Usá OPEN_URL solo con estas claves: {site_keys}. "
         "Usá OPEN_APPLICATION solo con estas claves: "
         f"{application_keys}. "
+        "Un pedido de abrir Spotify, sin mencionar web o navegador, significa "
+        "OPEN_APPLICATION con target spotify. Sólo usá OPEN_URL con target spotify "
+        "si el usuario pide explícitamente Spotify web o en el navegador. "
+        "OPEN_APPROVED_TARGET usa sólo el nombre de un proyecto o documento que "
+        "el usuario registró previamente en la app, nunca una ruta. Si no está "
+        "registrado, la herramienta local lo rechazará. "
         "PLAY_YOUTUBE usa target como consulta de canción o video solicitada, "
         "con un máximo de 200 caracteres; no una URL. Usalo sólo si se pide buscar "
         "contenido distinto. STOP_YOUTUBE usa target null para pausar o detener el "
@@ -78,6 +98,9 @@ def _classification_instructions() -> str:
         "y controlan la reproducción actual, nunca son búsquedas. SET_SPOTIFY_VOLUME "
         "usa target como entero canónico de 0 a 100, por ejemplo '35'. Si piden abrir "
         "Spotify y reproducir algo, elegí la acción de reproducción correspondiente. "
+        "SET_OUTPUT_VOLUME cambia una salida de Windows y usa target como objeto con "
+        "device (el nombre dicho por el usuario) y percent (texto entero canónico de "
+        "0 a 80). No lo uses para Spotify ni inventes un dispositivo. "
         "No interpretes una negación, pregunta sobre capacidades o varios pedidos "
         "independientes como permiso para ejecutar sólo una parte. "
         "Si la orden no coincide con una capacidad permitida, usá UNSUPPORTED "

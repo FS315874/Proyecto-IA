@@ -6,8 +6,13 @@ from enum import Enum
 from typing import Protocol
 
 from desktop_agent.browser_contract import normalize_search_query
+from desktop_agent.approved_targets import normalize_target_name
 from desktop_agent.catalog import SUPPORTED_APPLICATIONS, SUPPORTED_SITES
 from desktop_agent.models import Action, Intent, RiskLevel
+from desktop_agent.output_audio import (
+    OutputVolumeRequest,
+    validate_output_volume_target,
+)
 from desktop_agent.parser import parse_command
 
 PROPOSAL_SCHEMA_VERSION = 1
@@ -19,6 +24,7 @@ class ProposalIntent(str, Enum):
 
     OPEN_URL = "OPEN_URL"
     OPEN_APPLICATION = "OPEN_APPLICATION"
+    OPEN_APPROVED_TARGET = "OPEN_APPROVED_TARGET"
     PLAY_YOUTUBE = "PLAY_YOUTUBE"
     STOP_YOUTUBE = "STOP_YOUTUBE"
     RESUME_YOUTUBE = "RESUME_YOUTUBE"
@@ -30,6 +36,7 @@ class ProposalIntent(str, Enum):
     NEXT_SPOTIFY = "NEXT_SPOTIFY"
     PREVIOUS_SPOTIFY = "PREVIOUS_SPOTIFY"
     SET_SPOTIFY_VOLUME = "SET_SPOTIFY_VOLUME"
+    SET_OUTPUT_VOLUME = "SET_OUTPUT_VOLUME"
     UNSUPPORTED = "UNSUPPORTED"
 
 
@@ -39,7 +46,7 @@ class ActionProposal:
 
     schema_version: int
     intent: ProposalIntent
-    target: str | None
+    target: str | OutputVolumeRequest | None
 
 
 class ProposalValidationError(ValueError):
@@ -221,12 +228,20 @@ def _validate_proposal_values(
     except ValueError as error:
         raise ProposalValidationError("El intent no está permitido.") from error
 
-    if target is not None and not isinstance(target, str):
-        raise ProposalValidationError("El destino debe ser texto o null.")
-    if isinstance(target, str) and (not target or target != target.strip()):
-        raise ProposalValidationError(
-            "El destino debe ser una clave canónica no vacía."
-        )
+    if intent is ProposalIntent.SET_OUTPUT_VOLUME:
+        try:
+            target = validate_output_volume_target(target)
+        except ValueError:
+            raise ProposalValidationError(
+                "El volumen de salida propuesto no es válido."
+            ) from None
+    else:
+        if target is not None and not isinstance(target, str):
+            raise ProposalValidationError("El destino debe ser texto o null.")
+        if isinstance(target, str) and (not target or target != target.strip()):
+            raise ProposalValidationError(
+                "El destino debe ser una clave canónica no vacía."
+            )
     without_target = {
         ProposalIntent.UNSUPPORTED,
         ProposalIntent.STOP_YOUTUBE,
@@ -256,6 +271,11 @@ def _validate_proposal_values(
         percent = int(target)
         if not 0 <= percent <= 100 or target != str(percent):
             raise ProposalValidationError("El volumen de Spotify no es válido.")
+    if intent is ProposalIntent.OPEN_APPROVED_TARGET:
+        try:
+            normalize_target_name(target)
+        except ValueError:
+            raise ProposalValidationError("El nombre del destino aprobado no es válido.") from None
 
     return ActionProposal(
         schema_version=schema_version,
@@ -294,6 +314,29 @@ def build_action_from_proposal(proposal: ActionProposal) -> Action | None:
 
     if proposal.intent is ProposalIntent.UNSUPPORTED:
         return None
+
+    if proposal.intent is ProposalIntent.OPEN_APPROVED_TARGET:
+        assert proposal.target is not None
+        return Action(
+            intent=Intent.OPEN_APPLICATION,
+            tool_name="open_approved_target",
+            arguments={"name": proposal.target},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
+
+    if proposal.intent is ProposalIntent.SET_OUTPUT_VOLUME:
+        request = validate_output_volume_target(proposal.target)
+        return Action(
+            intent=Intent.SYSTEM_CHANGE,
+            tool_name="set_output_volume",
+            arguments={
+                "device": request.device,
+                "percent": request.percent,
+            },
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
 
     if proposal.intent in {
         ProposalIntent.PLAY_YOUTUBE,

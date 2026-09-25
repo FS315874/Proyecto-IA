@@ -5,6 +5,8 @@ from dataclasses import replace
 
 from desktop_agent import __version__
 from desktop_agent.app_settings import AppSettings, AppSettingsStore, SettingsError
+from desktop_agent.approved_targets import ApprovedTargetStore
+from desktop_agent.targets_dialog import show_targets
 from desktop_agent.audio_devices import create_recorder
 from desktop_agent.hotkeys import GlobalHotkeys
 from desktop_agent.settings_dialog import show_settings
@@ -179,6 +181,7 @@ class TkDesktopAgentApp:
         *,
         settings: AppSettings | None = None,
         settings_store: AppSettingsStore | None = None,
+        target_store: ApprovedTargetStore | None = None,
         recorder: SoundDeviceWavRecorder | None = None,
         hotkeys: GlobalHotkeys | None = None,
         settings_warning: str | None = None,
@@ -198,6 +201,7 @@ class TkDesktopAgentApp:
         self._history_ids: set[str] = set()
         self._settings = settings or AppSettings()
         self._settings_store = settings_store
+        self._target_store = target_store
         self._recorder = recorder
         self._hotkeys = hotkeys
         self._diagnostics = diagnostics
@@ -236,6 +240,12 @@ class TkDesktopAgentApp:
         ttk.Label(heading, text="¿Qué querés hacer?", font=("Segoe UI", 20, "bold")).pack(side="left")
         self._settings_button = ttk.Button(heading, text="Configuración", command=self._open_settings, state="normal" if settings_store else "disabled")
         self._settings_button.pack(side="right")
+        ttk.Button(
+            heading,
+            text="Mis proyectos",
+            command=self._open_targets,
+            state="normal" if target_store else "disabled",
+        ).pack(side="right", padx=8)
         ttk.Button(heading, text="Ejemplos", command=self._show_examples).pack(side="right", padx=8)
         self._errors_button = ttk.Button(heading, text="Historial de errores", command=self._open_errors,
                                         state="normal" if diagnostics else "disabled")
@@ -555,6 +565,11 @@ class TkDesktopAgentApp:
             self._record_gui_failure("spotify_configuration", "settings")
             return
         show_settings(self._root, self._settings, self._settings_store, saved)
+
+    def _open_targets(self) -> None:
+        if self._closing or self._target_store is None or self._root.grab_current() is not None:
+            return
+        show_targets(self._root, self._target_store)
 
     def _finish_voice(self) -> None:
         if self._recorder is not None:
@@ -1114,11 +1129,13 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
             settings_store,
             logger,
         )
+        approved_targets = ApprovedTargetStore()
         executor, playback_controller = build_executor(
             logger,
             browser_preferences=browser_runtime.preferences,
             browser_bridge=browser_runtime.bridge,
             spotify_controller=spotify_controller,
+            target_store=approved_targets,
         )
         interpreter = build_interpreter(
             source,
@@ -1153,7 +1170,8 @@ def _run_gui_session(environ, settings, settings_store, restart, settings_warnin
             hotkeys.start()
         root = tk.Tk()
         app = TkDesktopAgentApp(root, service, voice, browser_runtime,
-            settings=settings, settings_store=settings_store, recorder=recorder,
+            settings=settings, settings_store=settings_store,
+            target_store=approved_targets, recorder=recorder,
             hotkeys=hotkeys, settings_warning="\n".join(startup_warnings) or None,
             diagnostics=history_handler(logger), diagnostic_logger=logger)
         def report_callback_failure(*_):

@@ -354,14 +354,20 @@ reales a OpenAI. Los tests JS se ejecutan por separado con
 `node --test tests/browser_extension.test.cjs`; los runners de aceptación seleccionan
 subconjuntos de la suite. El runner manual de WEB-07 es independiente y requiere
 autorización porque abre Chromium visible y usa red. Los resultados y límites de
-validación están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); la aceptación
-personal de voz y extensión sigue pendiente.
+validación están en [V0.17_ARCHITECTURE.md](V0.17_ARCHITECTURE.md); la extensión y
+YouTube reales quedaron aceptados el 2026-09-25, mientras voz, cancelación y atajos
+siguen pendientes.
 
 La regresión de mantenimiento del 2026-09-14 aprobó **489 tests Python y 13 JS**.
-Se corrigieron la limpieza sin reproductor y la pausa de un video reanudado a mano;
-la prueba real anterior falló y la corrección todavía requiere recargar la extensión
-y repetirse. No equivale a una aceptación completa. Evidencia posterior y próximo
+Se corrigieron la limpieza sin reproductor y la pausa de un video reanudado a mano.
+La reproducción, pausa y reanudación reales quedaron aceptadas el 2026-09-25; eso no
+equivale todavía a la aceptación completa de `POLISH-08`. Evidencia y próximo
 diagnóstico en [ERROR_HISTORY.md](ERROR_HISTORY.md).
+
+La prueba de voz posterior mostró que «abrí Spotify» todavía elegía Spotify Web. La
+regla corregida reserva el nombre desnudo para la aplicación y exige «web» o
+«navegador» para la URL. Parser, proveedor de IA y planes comparten esa decisión; la
+regresión cerró con 547 pruebas Python aprobadas y espera retest real tras reinicio.
 
 Los controles del reproductor son distintos de una búsqueda: `play_youtube` recibe
 una consulta nueva, `stop_youtube` pausa el video actual y `resume_youtube` reanuda el
@@ -500,10 +506,12 @@ para saltar versiones o decisiones del usuario.
 | v0.12 | Interfaz de escritorio | Completada |
 | v0.13 | Entrada por voz | Completada |
 | v0.14 | Control remoto propio | Completada en el núcleo; sin relay desplegado |
-| v0.15 | Navegador habitual y Spotify | Implementada; extensión instalada y conectada, recorrido completo pendiente |
+| v0.15 | Navegador habitual y Spotify | Implementada; extensión y recorrido real de YouTube aceptados |
 | v0.16 | Aplicaciones locales habituales | Implementada; prueba visible pendiente |
 | v0.17 | Uso cotidiano y auditoría | Implementada y testeada localmente; aceptación personal pendiente |
 | v0.18 | Control oficial de Spotify | Completada; QA simulado y aceptación real aprobados |
+| v0.19 | Proyectos y documentos aprobados | Completada; QA y apertura visible aprobados |
+| v0.20 | Volumen por dispositivo de salida | Completada; HyperX al 35 % aceptado el 2026-09-24 |
 
 El roadmap es una orientación, no un compromiso de implementar módulos antes de
 que la versión anterior sea estable.
@@ -1206,3 +1214,36 @@ completas y 13 pruebas JavaScript de la extensión. La aceptación del 2026-09-1
 comprobó OAuth persistente, playlist/canción, pausa, reanudación, saltos y volumen en
 el dispositivo real. El diseño, checklist y límites completos están en
 [V0.18_ARCHITECTURE.md](V0.18_ARCHITECTURE.md).
+
+## 35. Estado de implementación de v0.19
+
+La GUI incorpora **Mis proyectos** para registrar con un selector local carpetas de
+proyecto y documentos `.md`, `.markdown`, `.txt` o `.rst`. El registro se guarda fuera
+del repositorio y de la configuración de credenciales. Los comandos de texto o voz
+revisada, el parser, las propuestas de IA y los planes comparten una acción cerrada:
+el modelo sólo nombra el destino, y `ActionExecutor` llama a la herramienta que
+comprueba aprobación, ambigüedad, existencia y tipo. La ruta no procede del modelo.
+
+La herramienta pasa la ruta aprobada como argumento literal al `.exe` de VS Code,
+sin shell. La apertura visible de un proyecto y un documento propios fue aprobada el
+2026-09-19. Esto no cierra la prueba pendiente de voz, cancelación y atajos de
+`POLISH-08`.
+Diseño, controles y casos de prueba en
+[V0.19_ARCHITECTURE.md](V0.19_ARCHITECTURE.md).
+
+## 36. Estado de implementación de v0.20
+
+v0.20 agrega `set_output_volume`, una herramienta separada del volumen de Spotify.
+El parser, la IA y los planes conservan nombre de salida y porcentaje como datos
+estructurados. La herramienta enumera endpoints de reproducción activos, exige una
+coincidencia inequívoca y rechaza niveles fuera de 0–80 antes de producir un efecto.
+
+El backend usa MMDevice e `IAudioEndpointVolume` mediante `ctypes`, sin shell ni
+dependencias nuevas. Después de escribir el valor escalar vuelve a leerlo; sólo
+informa éxito dentro de la tolerancia documentada. No cambia mute, salida
+predeterminada ni controles internos de VoiceMeeter. La enumeración real reconoció
+HyperX y los endpoints VoiceMeeter, y la lectura real de HyperX respondió. El usuario
+aceptó el cambio físico de HyperX al 35 % el 2026-09-24. Detalle en
+[V0.20_ARCHITECTURE.md](V0.20_ARCHITECTURE.md).
+Al cierre pasaron 119 pruebas específicas, 547 Python y 13 JavaScript; ninguna
+prueba automatizada modificó el volumen real.

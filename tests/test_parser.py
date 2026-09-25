@@ -147,8 +147,8 @@ class ParseCommandTests(unittest.TestCase):
             "abrir youtube": "https://www.youtube.com/",
             "abrir google": "https://www.google.com/",
             "abrir github": "https://github.com/",
-            "abrir spotify": "https://open.spotify.com/",
             "abrir spotify web": "https://open.spotify.com/",
+            "abrir spotify en el navegador": "https://open.spotify.com/",
         }
 
         for command, expected_url in expected_urls.items():
@@ -172,7 +172,7 @@ class ParseCommandTests(unittest.TestCase):
     def test_accepts_natural_sentence_boundary_punctuation(self) -> None:
         cases = {
             "Abrir calculadora.": ("open_application", "calculator"),
-            "¡Abrí Spotify!": ("open_url", "https://open.spotify.com/"),
+            "¡Abrí Spotify!": ("open_application", "spotify"),
             "¿abrir YouTube?": ("open_url", "https://www.youtube.com/"),
         }
 
@@ -199,8 +199,10 @@ class ParseCommandTests(unittest.TestCase):
             "abrir chrome": "chrome",
             "abrir vscode": "vscode",
             "abrir calculadora": "calculator",
+            "abrir spotify": "spotify",
             "abrir spotify app": "spotify",
             "abrir spotify escritorio": "spotify",
+            "abrir la aplicación de Spotify": "spotify",
             "abrir steam": "steam",
             "abrir voicemeeter banana": "voicemeeter",
             "abrir league of legends": "league_of_legends",

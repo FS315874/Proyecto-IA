@@ -43,6 +43,9 @@ python -m desktop_agent "detener youtube"
 python -m desktop_agent "poné mi playlist 7W7 en spotify"
 python -m desktop_agent "pausá spotify"
 python -m desktop_agent "seguí reproduciendo spotify"
+python -m desktop_agent "abrí el proyecto IA"
+python -m desktop_agent "poné el volumen de HyperX al 35 %"
+python -m desktop_agent --audio-outputs
 python -m desktop_agent --plan "detener youtube luego detener youtube"
 python -m scripts.obs08_manual_check
 python -m scripts.vis08_simulated_check
@@ -54,6 +57,8 @@ python -m scripts.ui12_smoke_check
 python -m scripts.voice13_qa_check
 python -m scripts.remote14_qa_check
 python -m scripts.spotify18_qa_check
+python -m scripts.targets19_qa_check
+python -m scripts.audio20_qa_check
 python -m unittest discover -s tests -v
 ```
 

@@ -1,6 +1,6 @@
 # Historial de errores y mantenimiento de v0.17
 
-Revisión: 2026-09-14. Implementado con asistencia de IA dentro de v0.17.0, sin
+Revisión: 2026-09-25. Implementado con asistencia de IA dentro de v0.17.0, sin
 agregar dependencias, capacidades de control ni permisos. No cierra POLISH-08.
 
 ## Para usarlo
@@ -159,7 +159,7 @@ El runner `polish17_qa_check` selecciona un subconjunto que crece con los módul
 sumar sus tests otra vez al total. La auditoría inicial de v0.17 (439 Python/9 JS) se
 conserva como evidencia histórica en `V0.17_ARCHITECTURE.md`.
 
-### Prueba real: corrección pendiente de retest
+### Prueba real: corrección aceptada después del retest
 
 El 2026-09-12 una prueba con el puente conectado falló con `browser_no_results` en
 `select_first_result`, aproximadamente 4 s. El 2026-09-13 se reprodujo con el nuevo
@@ -182,13 +182,28 @@ extensión y repetir una prueba corta. No se declara resuelta antes de esa obser
 En la prueba siguiente, el recorrido base funcionó, pero «poné pausa al video que
 estoy mirando en YouTube» abrió una búsqueda sobre pausas y «reproducí lo que estaba
 mirando en YouTube» buscó ese texto. La transcripción no era la causa: faltaba separar
-el control de reanudación de `PLAY_YOUTUBE`. La corrección está automatizada, pero su
-aceptación real permanece pendiente.
+el control de reanudación de `PLAY_YOUTUBE`. La corrección estaba automatizada, pero
+su aceptación real quedó entonces pendiente.
 
 El control de navegador de Codex bloqueó la página de administración de extensiones.
-No se usaron rutas alternativas para eludirlo. Falta que el usuario recargue **Desktop
-Agent Browser Bridge** en Chrome y verifique la copia instalada; editar el repositorio
-no garantiza que Chrome esté ejecutando ese worker.
+No se usaron rutas alternativas para eludirlo. En ese momento faltaba que el usuario
+recargara **Desktop Agent Browser Bridge** en Chrome y verificara la copia instalada;
+editar el repositorio no garantizaba que Chrome estuviera ejecutando ese worker.
+
+El 2026-09-25 el usuario completó el retest acordado: reprodujo «qué tan malo puedo
+ser», pidió pausar el video actual y luego reanudarlo. Confirmó que las tres órdenes
+funcionaron correctamente, sin convertir pausa o reanudación en búsquedas. Con esa
+observación quedaron aceptados el recorrido real de YouTube y la extensión instalada.
+`POLISH-08` continúa abierto sólo por voz, cancelación y atajos reales.
+
+Durante esa prueba de voz, «abrí Spotify» siguió la antigua precedencia del catálogo:
+`spotify` era alias de sitio y sólo `spotify app` era alias de aplicación. El historial
+registró dos fallos `open_url` de unos 5 s. La corrección del 2026-09-25 mueve el
+nombre desnudo al catálogo de aplicaciones, conserva `spotify web` y `spotify en el
+navegador` como solicitudes explícitas de URL y aplica la misma regla a las
+instrucciones de IA y planes. Pasaron 34 pruebas directas y la suite completa de 547
+pruebas Python, sin abrir Spotify ni usar la API. Falta reiniciar la app y repetir la
+orden real antes de cerrar `POLISH-08`.
 
 Hay un runner opt-in, sin cargar claves/settings de IA ni modificar preferencias:
 
@@ -216,5 +231,7 @@ humana. El acceso de Codex a Chrome no es la integración nativa de Desktop Agen
    luego «Reproducí lo que estaba mirando en YouTube». Debe pausar y reanudar el
    mismo video sin buscar esas frases ni cerrar la pestaña. Después probar una segunda
    canción, misma pestaña y sonido.
+Los pasos 1, 3 y 4 quedaron aceptados el 2026-09-25. Queda:
+
 5. Con el usuario presente, retomar voz, cancelación/atajos y aperturas de POLISH-08.
    Las llamadas pagas y el micrófono mantienen sus permisos específicos.

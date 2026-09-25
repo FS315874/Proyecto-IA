@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 
 from desktop_agent import __version__
 from desktop_agent.app_settings import AppSettings, AppSettingsStore, SettingsError
+from desktop_agent.approved_targets import ApprovedTargetStore, TargetError, open_approved_target
 from desktop_agent.budgeted_provider import BudgetedProposalProvider
 from desktop_agent.browser_bridge import BrowserBridgeClient
 from desktop_agent.browser_preferences import (
@@ -27,6 +28,11 @@ from desktop_agent.logging_config import configure_logging
 from desktop_agent.models import ToolResult
 from desktop_agent.openai_provider import OpenAIProposalProvider
 from desktop_agent.openai_plan_provider import OpenAIPlanProvider
+from desktop_agent.output_audio import (
+    OutputAudioError,
+    OutputVolumeTool,
+    WindowsCoreAudioBackend,
+)
 from desktop_agent.plans import (
     CancellationToken,
     PlanInterpretationStatus,
@@ -90,6 +96,11 @@ class SpotifyController(Protocol):
     def set_volume(self, percent: str) -> ToolResult: ...
 
 
+@runtime_checkable
+class OutputVolumeController(Protocol):
+    def __call__(self, device: str, percent: str) -> ToolResult: ...
+
+
 def _default_playback_controller(
     logger: logging.Logger,
     browser_preferences: BrowserPreferenceSource,
@@ -139,6 +150,8 @@ def build_executor(
     browser_preferences: BrowserPreferenceSource | None = None,
     browser_bridge: BrowserBridgeClient | None = None,
     spotify_controller: SpotifyController | None = None,
+    target_store: ApprovedTargetStore | None = None,
+    output_volume_controller: OutputVolumeController | None = None,
 ) -> tuple[ActionExecutor, PlaybackController]:
     """Registra herramientas sin iniciar Chromium hasta recibir una orden web."""
 
@@ -166,6 +179,9 @@ def build_executor(
     )
     if not isinstance(spotify, SpotifyController):
         raise TypeError("El controlador de Spotify no es válido.")
+    output_volume = output_volume_controller or OutputVolumeTool()
+    if not isinstance(output_volume, OutputVolumeController):
+        raise TypeError("El controlador de volumen de salida no es válido.")
     browser_opener = PreferredBrowserOpener(
         preferences,
         bridge=browser_bridge,
@@ -174,6 +190,11 @@ def build_executor(
         tools={
             "open_url": lambda url: open_url(url, opener=browser_opener),
             "open_application": open_application,
+            "open_approved_target": lambda name, kind=None: open_approved_target(
+                name,
+                kind=kind,
+                store=target_store,
+            ),
             "play_youtube": controller,
             "stop_youtube": controller.stop,
             "resume_youtube": controller.resume,
@@ -185,6 +206,7 @@ def build_executor(
             "next_spotify": spotify.next,
             "previous_spotify": spotify.previous,
             "set_spotify_volume": spotify.set_volume,
+            "set_output_volume": output_volume,
         },
         logger=logger,
     )
@@ -419,6 +441,29 @@ def _hold_one_shot_playback(
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
+
+    if arguments == ["--targets"]:
+        try:
+            targets = ApprovedTargetStore().list()
+        except TargetError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        for target in targets:
+            print(f"{target.kind.value}: {target.name}")
+        return 0
+
+    if arguments == ["--audio-outputs"]:
+        try:
+            devices = WindowsCoreAudioBackend().list_devices()
+        except OutputAudioError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        except (AttributeError, OSError, TypeError, ValueError):
+            print("Windows Core Audio no completó la enumeración.", file=sys.stderr)
+            return 1
+        for device in devices:
+            print(device.name)
+        return 0
 
     if arguments and arguments[0] == "--errors":
         # Consulta diagnóstica sin iniciar navegador, cargar credenciales o llamar IA.

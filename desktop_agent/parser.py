@@ -2,6 +2,7 @@ import re
 import unicodedata
 
 from desktop_agent.browser_contract import normalize_search_query
+from desktop_agent.approved_targets import TargetKind, normalize_target_name
 from desktop_agent.catalog import (
     APPLICATION_ALIASES,
     SITE_ALIASES,
@@ -9,6 +10,10 @@ from desktop_agent.catalog import (
     SUPPORTED_SITES,
 )
 from desktop_agent.models import Action, Intent, RiskLevel
+from desktop_agent.output_audio import (
+    normalize_output_device_name,
+    validate_output_percent,
+)
 
 _YOUTUBE_PLAY_PATTERNS = (
     re.compile(
@@ -116,6 +121,14 @@ _SPOTIFY_VOLUME_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_OUTPUT_VOLUME_PATTERNS = (
+    re.compile(
+        r"^\s*(?:pon[eé]|ajust[aá]|sub[ií]|baj[aá])\s+(?:el\s+)?volumen\s+"
+        r"(?:de|en|para)\s+(.+?)\s+(?:a|al|en)\s+"
+        r"(?:(?:el\s+)?nivel\s+de\s+)?(\d{1,3})\s*%?\s*$",
+        re.IGNORECASE,
+    ),
+)
 _SPOTIFY_PLAYLIST_PATTERNS = (
     re.compile(
         r"^\s*(?:pon[eé]|reproduc[ií]|reproduce|reproducir)\s+(?:en\s+spotify\s+)?"
@@ -144,6 +157,21 @@ _SPOTIFY_TRACK_PATTERNS = (
 )
 _LEADING_SENTENCE_PUNCTUATION = re.compile(r"^\s*[¡¿]+\s*")
 _TRAILING_SENTENCE_PUNCTUATION = re.compile(r"\s*[.!?¡¿]+\s*$")
+_APPROVED_TARGET_PATTERNS = (
+    (
+        re.compile(r"^\s*(?:abr[ií]|abrir|abre|mostr[aá]|mostrar)\s+(?:el\s+)?proyecto\s+(.+?)\s*$", re.IGNORECASE),
+        TargetKind.PROJECT,
+    ),
+    (
+        re.compile(
+            r"^\s*(?:abr[ií]|abrir|abre|mostr[aá]|mostrar)\s+"
+            r"(?:(?:la\s+)?documentaci[oó]n|(?:el\s+)?(?:archivo|documento))\s+"
+            r"(?:de\s+)?(.+?)\s*$",
+            re.IGNORECASE,
+        ),
+        TargetKind.DOCUMENT,
+    ),
+)
 
 
 def _without_sentence_boundary_punctuation(command: str) -> str:
@@ -168,6 +196,22 @@ def parse_command(command: str) -> Action | None:
     if not isinstance(command, str):
         return None
     command = _without_sentence_boundary_punctuation(command)
+
+    for pattern, kind in _APPROVED_TARGET_PATTERNS:
+        match = pattern.fullmatch(command)
+        if match is not None:
+            target = match.group(1).strip()
+            try:
+                normalize_target_name(target)
+            except ValueError:
+                return None
+            return Action(
+                intent=Intent.OPEN_APPLICATION,
+                tool_name="open_approved_target",
+                arguments={"name": target, "kind": kind.value},
+                risk_level=RiskLevel.SAFE,
+                requires_confirmation=False,
+            )
 
     spotify_controls = (
         (_SPOTIFY_PAUSE_PATTERNS, "pause_spotify"),
@@ -198,6 +242,25 @@ def parse_command(command: str) -> Action | None:
                 risk_level=RiskLevel.SAFE,
                 requires_confirmation=False,
             )
+
+    for pattern in _OUTPUT_VOLUME_PATTERNS:
+        match = pattern.fullmatch(command)
+        if match is None:
+            continue
+        device = match.group(1).strip()
+        percent = str(int(match.group(2)))
+        try:
+            normalize_output_device_name(device)
+            validate_output_percent(percent)
+        except ValueError:
+            return None
+        return Action(
+            intent=Intent.SYSTEM_CHANGE,
+            tool_name="set_output_volume",
+            arguments={"device": device, "percent": percent},
+            risk_level=RiskLevel.SAFE,
+            requires_confirmation=False,
+        )
 
     spotify_searches = (
         (_SPOTIFY_PLAYLIST_PATTERNS, "play_spotify_playlist", "name"),

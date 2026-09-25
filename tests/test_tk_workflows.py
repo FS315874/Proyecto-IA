@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from desktop_agent.app_settings import AppSettings, AppSettingsStore
+from desktop_agent.approved_targets import ApprovedTargetStore
 from desktop_agent.browser_preferences import BrowserPreferenceStore, PreferredBrowser
 from desktop_agent.browser_bridge import BrowserBridgeSnapshot, BrowserBridgeState
 from desktop_agent.local_controller import LocalAgentController
@@ -114,6 +115,19 @@ class TkWorkflowTests(unittest.TestCase):
         self.assertEqual(app.next_settings, AppSettings())
         self.assertEqual(AppSettingsStore(self.path / "settings.json").load(), AppSettings())
         self.assertTrue(app._closing)
+
+    def test_approved_targets_dialog_opens_without_changing_settings(self):
+        target_store = ApprovedTargetStore(self.path / "targets.json")
+        app = TkDesktopAgentApp(
+            self.root, self.service, self.voice,
+            settings=AppSettings(),
+            settings_store=AppSettingsStore(self.path / "settings.json"),
+            target_store=target_store,
+        )
+        with patch("desktop_agent.tk_app.show_targets") as show:
+            app._open_targets()
+        show.assert_called_once_with(self.root, target_store)
+        self.assertFalse(target_store.path.exists())
 
 
     def test_browser_save_error_survives_refresh_and_restores_effective_selection(self):

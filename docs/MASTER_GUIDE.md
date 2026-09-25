@@ -1,6 +1,6 @@
 # Guía maestra de continuidad — Desktop Agent
 
-Revisión: 2026-09-14. Preparada con asistencia de Astra para continuar con Sol u otro
+Revisión: 2026-09-25. Preparada con asistencia de Astra para continuar con Sol u otro
 asistente. Es contexto operativo del proyecto, no entrenamiento del modelo, una
 garantía de resultados ni autorización para ejecutar todo el backlog.
 
@@ -47,15 +47,15 @@ Los módulos experimentales actuales no equivalen a resolver cualquier app desco
 Este bloque es una fotografía, no un estado en vivo. Actualizarlo después de un hito
 autorizado; comprobar primero `git status`, versión y archivos afectados.
 
-- Versión local: **0.18.0**, coincidente en `pyproject.toml`, paquete y extensión.
+- Versión local: **0.20.0**, coincidente en `pyproject.toml`, paquete y extensión.
 - Rama observada al preparar la guía: `feature/mvp-0.15`; su nombre quedó histórico
   y no indica la versión ejecutable. Verificar rama y remoto antes de publicar.
-- Estado: v0.18 implementada y aceptación personal **SPOTIFY-18-08 completada** el
-  2026-09-16. `POLISH-08` de v0.17 conserva verificaciones reales pendientes. No
-  llamar a esto release estable sólo por un commit/push.
-- Validación vigente de v0.18: **127 pruebas específicas, 524 Python y 13 JS
-  aprobadas**. La suite simulada no usa red externa; la aceptación real comprobó la
-  cuenta, persistencia de autorización, dispositivo y controles de reproducción.
+- Estado: v0.19 quedó aceptada el 2026-09-19 con proyecto y documentación reales.
+  v0.20 quedó aceptada el 2026-09-24 con el cambio real de HyperX al 35 %.
+  `POLISH-08` de v0.17 conserva voz, cancelación y atajos reales pendientes.
+- Validación vigente de v0.20: **119 pruebas específicas, 547 Python y 13 JS
+  aprobadas**, enumeración y lectura reales y aceptación personal del cambio físico.
+  v0.19 conserva su aceptación visible.
 - Mantenimiento autorizado: historial de errores persistente, preferencia efectiva
   visible y recuperación honesta tras parada fallida. **489 tests Python y 13 JS
   aprobados** el 2026-09-14. La auditoría inicial (439/9) es histórica; los runners
@@ -63,17 +63,19 @@ autorizado; comprobar primero `git status`, versión y archivos afectados.
 - Al retomar desarrollo, ejecutar primero **`python -m desktop_agent --errors`**:
   consulta sólo lectura, sin navegador/API. Leer `--all` sólo si hace falta revisar
   incidentes anteriores. Categoría preliminar no prueba culpa de entorno/producto.
-- La última prueba personal aprobó transcripción y aperturas habituales. YouTube
-  falló: una búsqueda dejó una limpieza sin confirmar y una orden no pausó el video
-  reanudado manualmente. Luego se observó que ciertas frases de pausa/reanudación se
-  convertían en búsquedas; ahora `PLAY_YOUTUBE`, `STOP_YOUTUBE` y `RESUME_YOUTUBE`
-  son acciones separadas. Falta reiniciar la app y hacer el retest real. Detalle en
-  [ERROR_HISTORY.md](ERROR_HISTORY.md).
+- La prueba personal del 2026-09-25 aprobó reproducción, pausa y reanudación de
+  YouTube en la pestaña gestionada. Las frases de control ya no se convirtieron en
+  búsquedas. `PLAY_YOUTUBE`, `STOP_YOUTUBE` y `RESUME_YOUTUBE` quedaron aceptadas
+  como acciones separadas. Detalle en [ERROR_HISTORY.md](ERROR_HISTORY.md).
+- Durante la prueba de voz del 2026-09-25, «abrí Spotify» resolvió el sitio web y
+  produjo dos fallos `open_url`. El catálogo ahora prioriza la aplicación para el
+  nombre desnudo y exige «web» o «navegador» para la URL. La corrección aprobó 34
+  pruebas directas y 547 Python; falta reiniciar la app y repetir esa frase.
 - La prueba real de Spotify reprodujo playlist y canción, pausó, reanudó, avanzó,
   retrocedió y ajustó volumen. Corrigió falsos fallos causados por cuerpos no JSON en
   respuestas exitosas. El usuario ya había confirmado audio audible; el contenido de
   una búsqueda abierta requiere observación visual. Esto no reemplaza los checkpoints
-  reales pendientes de voz, YouTube o juegos.
+  reales pendientes de voz, cancelación o atajos.
 - Datos/clave/consumo quedan fuera del repositorio. No leer sus valores para recuperar
   contexto. La GUI conserva preferencias; la clave OpenAI sólo persiste con Recordar
   opt-in y el refresh token de Spotify siempre queda cifrado con DPAPI.
@@ -81,13 +83,17 @@ autorizado; comprobar primero `git status`, versión y archivos afectados.
   para transcribir. Tope inicial compartido de la app: **USD 1/mes**, modificable por
   el usuario. No aumentar el tope ni migrar modelos como efecto de esta guía.
 
-### Próximo paso concreto: retomar POLISH-08
+### Próximo paso concreto: cerrar POLISH-08
 
-Spotify queda cerrado para el alcance de v0.18. Al retomar, ejecutar primero
-`python -m desktop_agent --errors`, recargar la extensión instalada y completar el
-recorrido real pendiente de YouTube, voz, cancelación/atajos y aperturas visibles.
-No ampliar el catálogo hasta fijar y reproducir cualquier incidente pendiente.
-Detalles de Spotify y evidencia: [arquitectura v0.18](V0.18_ARCHITECTURE.md).
+Spotify, proyectos, volumen y el recorrido de YouTube quedan aceptados. El historial
+seguro se consultó el 2026-09-25: no mostró un fallo nuevo de navegador; conserva un
+`unsupported` sin contenido por privacidad que no puede atribuirse a esa prueba.
+Reiniciar y repetir «abrí Spotify» por voz para confirmar la aplicación; comprobar
+también que cancelar impida cualquier apertura. No marcar `POLISH-08` completado por
+sus pruebas simuladas. Detalles: [arquitectura v0.20](V0.20_ARCHITECTURE.md),
+[arquitectura v0.19](V0.19_ARCHITECTURE.md),
+[arquitectura v0.18](V0.18_ARCHITECTURE.md) e
+[historial/checklist](ERROR_HISTORY.md).
 
 ## 3. Contrato de trabajo por pedido
 
@@ -131,6 +137,8 @@ con su primera ruta. Abrir implementación y tests vecinos, no todo el árbol.
 | Navegador | `desktop_agent/browser_runtime.py`, `browser_preferences.py`, `preferred_browser.py`, `chrome_extension_adapter.py`, `browser_bridge.py`, `chrome_native_host.py` | `tests/test_browser_runtime.py`, `test_browser_preferences.py`, `test_chrome_extension_adapter.py`, `test_browser_bridge.py` |
 | Extensión | `browser_extension/service_worker.js`, `manifest.json` | `tests/browser_extension.test.cjs`, `test_browser_extension_manifest.py` |
 | Apps | `desktop_agent/catalog.py`, `tools/applications.py` | `tests/test_application_tool.py` |
+| Proyectos aprobados | `desktop_agent/approved_targets.py`, `targets_dialog.py` | `tests/test_approved_targets.py`, `test_tk_workflows.py` |
+| Salidas de audio | `desktop_agent/output_audio.py`, `parser.py`, `cli.py` | `tests/test_output_audio.py` |
 | Consumo | `desktop_agent/usage_budget.py`, `budgeted_provider.py`, `provider_config.py`, `voice_transcription_config.py` | `tests/test_usage_budget.py`, `test_openai_voice.py`, `test_provider_config.py` |
 | Incidentes locales | `desktop_agent/diagnostics.py`, `error_history.py`, `error_history_dialog.py`, `logging_config.py` | `tests/test_error_history.py`, `test_diagnostic_workflows.py`, `test_logging_config.py`, `test_tk_workflows.py` |
 
@@ -166,9 +174,10 @@ Comprobar preferencia efectiva → proceso elegido → host/puente → extensió
 → pestaña/origen → DOM → reproductor. Si cambia la preferencia, no conservar el
 adaptador anterior. Si la extensión falla, no abrir Chromium como fallback oculto.
 
-Después de editar el worker hay que recargar la extensión instalada. Hay una
-regresión para Chrome sin ventana normal/selector de perfiles, pero su aceptación
-real sigue pendiente. No elegir otro perfil ni cambiar configuraciones para sortearla.
+Después de editar el worker hay que recargar la extensión instalada. La regresión
+para Chrome sin ventana normal/selector de perfiles y el control del reproductor
+quedaron aceptados en el recorrido real del 2026-09-25. No elegir otro perfil ni
+cambiar configuraciones para sortear futuros fallos.
 
 Éxito de música en YouTube exige URL adecuada, reproducción, avance de tiempo, reproductor y
 pestaña no silenciados. Aun así, el volumen físico/salida de Windows necesita evidencia
@@ -240,13 +249,14 @@ La medición local es contabilidad estimada, no factura garantizada del proveedo
 
 ## 7. Qué desarrollar después, si el usuario lo aprueba
 
-Primero cerrar POLISH-08 y los defectos que exponga. Luego elegir **una capacidad
-principal**, no anunciar nuevas versiones sólo porque aparecen en esta lista:
+Primero cerrar POLISH-08 y los defectos que exponga. Luego elegir
+**una capacidad principal**, no anunciar nuevas versiones sólo porque aparecen en
+esta lista. La primera capacidad ya se implementó en v0.19:
 
-1. Proyectos/documentos seleccionados: identificadores y rutas aprobadas, ambigüedad
-   explícita, existencia y apertura verificables; sin indexar todo el disco.
-2. Volumen por dispositivo: resolver auriculares inequívocos, leer valor actual,
-   establecer porcentaje validado y verificar lectura; considerar VoiceMeeter.
+1. Proyectos/documentos seleccionados: registro, nombre e inicio de VS Code
+   implementados y aceptados visualmente en v0.19.
+2. Volumen por dispositivo: v0.20 completada y aceptada con HyperX al 35 % el
+   2026-09-24.
 3. Respuesta hablada y móvil: diseñar cada capacidad por separado con costo,
    privacidad, autenticación y cancelación. El remoto acotado existente no es una
    app móvil desplegada.

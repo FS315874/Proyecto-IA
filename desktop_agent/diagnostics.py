@@ -51,6 +51,18 @@ DEFINITIONS = {
     "app_launch_denied": DiagnosticDefinition("entorno", "Windows rechazó el lanzamiento", "Revisar instalación manualmente; no elevar permisos automáticamente."),
     "app_launch_failed": DiagnosticDefinition("por_investigar", "No se pudo iniciar la aplicación", "Comprobar ejecutable, dependencias y permisos."),
     "app_unverified": DiagnosticDefinition("integracion", "Proceso de aplicación no confirmado", "Distinguir launcher activo, login, actualización y proceso final."),
+    "target_rejected": DiagnosticDefinition("seguridad", "Destino local rechazado", "Revisar el nombre y tipo sin abrir rutas no aprobadas."),
+    "target_not_registered": DiagnosticDefinition("configuracion", "Proyecto o documento no registrado", "Abrir Mis proyectos, registrar el destino y repetir su nombre."),
+    "target_ambiguous": DiagnosticDefinition("configuracion", "Más de un destino aprobado coincide", "Usar el nombre completo o quitar la coincidencia innecesaria."),
+    "target_unavailable": DiagnosticDefinition("entorno", "El destino aprobado ya no está disponible", "Comprobar si fue movido o eliminado y registrarlo de nuevo."),
+    "target_changed": DiagnosticDefinition("seguridad", "La ruta aprobada cambió", "Registrar nuevamente el destino antes de abrirlo."),
+    "target_catalog_invalid": DiagnosticDefinition("revisar_producto", "El catálogo de proyectos no se pudo validar", "Revisar integridad y permisos sin reemplazar el archivo automáticamente."),
+    "audio_unavailable": DiagnosticDefinition("entorno", "Control de salidas de audio no disponible", "Comprobar que la aplicación se ejecuta en Windows con Core Audio activo."),
+    "audio_backend_failure": DiagnosticDefinition("integracion", "Windows Core Audio no completó la operación", "Enumerar salidas y repetir una lectura antes de cambiar el backend."),
+    "audio_invalid_input": DiagnosticDefinition("seguridad", "Destino o porcentaje de audio rechazado", "Usar una salida activa y un entero de 0 a 80."),
+    "audio_device_missing": DiagnosticDefinition("entorno", "No se encontró la salida de audio pedida", "Listar salidas activas y usar parte inequívoca de su nombre."),
+    "audio_device_ambiguous": DiagnosticDefinition("configuracion", "Más de una salida de audio coincide", "Usar un nombre más completo; no elegir una salida al azar."),
+    "audio_volume_not_confirmed": DiagnosticDefinition("integracion", "Windows no confirmó el volumen final", "Leer nuevamente el endpoint; no asumir éxito por la escritura."),
     "voice_no_speech": DiagnosticDefinition("entorno", "Captura sin voz detectada", "Comprobar medidor y micrófono físico, especialmente con mezcladores virtuales."),
     "voice_unavailable": DiagnosticDefinition("entorno", "Captura de voz no disponible", "Comprobar dispositivo y backend; no cambiar micrófono silenciosamente."),
     "voice_failed": DiagnosticDefinition("por_investigar", "Fallo de voz sin causa identificada", "Separar captura de transcripción usando las duraciones de la app."),
@@ -69,7 +81,7 @@ DEFINITIONS = {
     "startup_failed": DiagnosticDefinition("por_investigar", "No se pudo iniciar la interfaz", "Comprobar runtime, configuración e instancia previa."),
 }
 SOURCES = frozenset({"interpretation", "executor", "controller", "voice", "gui", "startup"})
-STAGES = frozenset({"interpreting", "validating", "executing", "capture", "transcription", "settings", "callback", "startup", "open_site", "search", "select_first_result", "start_playback", "read_playback", "verify_playback", "reset", "close", "stop", "spotify_authorization", "spotify_request", "spotify_search", "spotify_device", "spotify_playback", "spotify_verify"})
+STAGES = frozenset({"interpreting", "validating", "executing", "capture", "transcription", "settings", "callback", "startup", "open_site", "search", "select_first_result", "start_playback", "read_playback", "verify_playback", "reset", "close", "stop", "spotify_authorization", "spotify_request", "spotify_search", "spotify_device", "spotify_playback", "spotify_verify", "target_resolution", "target_open", "audio_device", "audio_backend", "audio_verify"})
 TOOLS = frozenset({
     "open_url",
     "open_application",
@@ -84,6 +96,8 @@ TOOLS = frozenset({
     "next_spotify",
     "previous_spotify",
     "set_spotify_volume",
+    "open_approved_target",
+    "set_output_volume",
     "navigate_browser",
 })
 

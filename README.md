@@ -4,17 +4,18 @@ Agente de escritorio desarrollado de forma incremental para convertir instruccio
 en lenguaje natural en acciones explícitas, controladas y auditables sobre una
 computadora.
 
-La versión ejecutable actual es **v0.18 — Control oficial de Spotify**. Conserva la
-configuración cotidiana de v0.17 y agrega OAuth PKCE, refresh token cifrado, selección
-segura de dispositivo y herramientas verificadas para buscar o reproducir canciones
-y playlists, pausar, reanudar, avanzar, retroceder y ajustar el volumen de Spotify.
-Conserva el tope predeterminado de **USD 1 al mes** para llamadas de IA; la Web API de
-Spotify no usa ese presupuesto.
+La versión ejecutable actual es **v0.20 — Volumen por dispositivo de salida**. Agrega
+resolución inequívoca de salidas activas de Windows, cambio de volumen entre 0 y 80 %
+y lectura posterior mediante Core Audio. Conserva los proyectos/documentos aprobados
+de v0.19, el control oficial de Spotify de v0.18 y el tope predeterminado de **USD 1
+al mes** para llamadas de IA; las órdenes deterministas de audio no consumen ese
+presupuesto.
 
 No es todavía un agente universal: abre el catálogo de aplicaciones, automatiza
 YouTube, controla Spotify mediante su API y acepta interpretación libre hacia esas
-herramientas. No controla el interior de juegos, archivos personales ni volumen de
-Windows. Los módulos
+herramientas y los destinos aprobados. No explora el disco ni controla el interior de
+juegos. El volumen de salida no cambia el dispositivo predeterminado ni el estado de
+silencio. Los módulos
 de visión, recetas y control remoto siguen teniendo demostraciones acotadas, no un
 asistente autónomo general. No incluye app móvil ni relay desplegado.
 
@@ -39,21 +40,31 @@ asistente autónomo general. No incluye app móvil ni relay desplegado.
    una cuenta Spotify Premium. En Development Mode, el propietario debe ser Premium;
    cualquier otra cuenta de prueba debe estar en **Settings → Users Management** de
    esa aplicación.
+7. Para abrir tus proyectos o documentación, pulsá **Mis proyectos**, asigná un nombre
+   y elegí explícitamente una carpeta o un archivo de texto. Después pedí, por
+   ejemplo, «abrí el proyecto Proyecto IA» o «abrí la documentación de Guía IA».
+   Cada documento se registra por separado; no se indexa el disco.
+8. Para ajustar una salida de Windows, usá una parte inequívoca de su nombre: «poné el
+   volumen de HyperX al 35 %». Consultá los nombres activos sin identificadores con
+   `python -m desktop_agent --audio-outputs`. v0.20 admite de 0 a 80 % y verifica el
+   valor leído; no desmutea ni cambia la salida predeterminada.
 
 Después de actualizar el código de una extensión ya instalada, recargá **Desktop Agent
 Browser Bridge** en `chrome://extensions` y comprobá “Sesión web: conectada”. El host
 local se inspecciona sin modificarlo con `python -m scripts.browser15_bridge_setup`.
 La extensión controla su propia pestaña, no cualquier pestaña que estés usando.
 
-La guía de cambios, pruebas pendientes y diagnóstico está en
-[docs/V0.18_ARCHITECTURE.md](docs/V0.18_ARCHITECTURE.md).
+La guía de cambios y límites de esta capacidad está en
+[docs/V0.20_ARCHITECTURE.md](docs/V0.20_ARCHITECTURE.md). El diagnóstico y las
+pruebas personales pendientes de v0.17 siguen en [docs/ERROR_HISTORY.md](docs/ERROR_HISTORY.md).
 
 El mantenimiento de v0.17 agrega **Historial de errores** persistente en la GUI y
 consulta local con `python -m desktop_agent --errors`. Conserva hasta 500 incidentes
 sin órdenes, audio ni claves. Incluye correcciones de preferencias y recuperación
 tras una parada fallida. La pausa vuelve a consultar la pestaña gestionada si el
-usuario reanuda el video manualmente. La prueba real de YouTube sigue pendiente;
-[estado y checklist](docs/ERROR_HISTORY.md) distinguen evidencia de hipótesis.
+usuario reanuda el video manualmente. La reproducción, pausa y reanudación reales de
+YouTube quedaron aceptadas el 2026-09-25; [estado y checklist](docs/ERROR_HISTORY.md)
+conservan la evidencia histórica y los checkpoints de voz y atajos.
 
 Para continuar el desarrollo con Sol u otro asistente, usar la
 [guía maestra de continuidad](docs/MASTER_GUIDE.md), enlazada desde `AGENTS.md`.
@@ -68,7 +79,7 @@ Abrir sitios web conocidos:
 abrir youtube
 abrir google
 abrir github
-abrir spotify
+abrir spotify web
 ```
 
 Abrir aplicaciones permitidas en Windows:
@@ -77,12 +88,15 @@ Abrir aplicaciones permitidas en Windows:
 abrir chrome
 abrir vscode
 abrir calculadora
-abrir spotify app
+abrir spotify
 abrir steam
 abrir voicemeeter banana
 abrir league of legends
 abrir god of war ragnarok
 ```
+
+`abrir spotify` prioriza la aplicación instalada. Para abrir el sitio se debe pedir
+explícitamente `abrir spotify web` o `abrir spotify en el navegador`.
 
 También se aceptan variantes deterministas como `abrí VS Code` y
 `abrir Visual Studio Code`. Una instrucción desconocida solo puede usar el fallback
@@ -351,7 +365,7 @@ python -m desktop_agent
 Ejemplo:
 
 ```text
-Desktop Agent v0.18.0 — escribí 'salir' para terminar.
+Desktop Agent v0.20.0 — escribí 'salir' para terminar.
 > abrir calculadora
 Entendiendo comando...
 Ejecutando open_application...
@@ -364,7 +378,7 @@ También se puede ejecutar una única instrucción:
 python -m desktop_agent "abrir youtube"
 python -m desktop_agent "abrir vscode"
 python -m desktop_agent "abrir spotify"
-python -m desktop_agent "abrir spotify app"
+python -m desktop_agent "abrir spotify web"
 python -m desktop_agent "abrir steam"
 python -m desktop_agent "abrir voicemeeter banana"
 python -m desktop_agent "poné en youtube qué tan malo puedo ser"
@@ -478,11 +492,11 @@ Para terminar el modo interactivo:
 | `abrir youtube` | `OPEN_URL` | `open_url` | `SAFE` |
 | `abrir google` | `OPEN_URL` | `open_url` | `SAFE` |
 | `abrir github` | `OPEN_URL` | `open_url` | `SAFE` |
-| `abrir spotify` | `OPEN_URL` | `open_url` | `SAFE` |
+| `abrir spotify web` | `OPEN_URL` | `open_url` | `SAFE` |
 | `abrir chrome` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir vscode` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir calculadora` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
-| `abrir spotify app` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
+| `abrir spotify` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir steam` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir voicemeeter banana` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
 | `abrir league of legends` | `OPEN_APPLICATION` | `open_application` | `SAFE` |
@@ -516,11 +530,16 @@ Para la aceptación de v0.17 y los tests del worker real de la extensión:
 ```powershell
 python -m scripts.polish17_qa_check
 python -m scripts.spotify18_qa_check
+python -m scripts.targets19_qa_check
+python -m scripts.audio20_qa_check
 node --test tests/browser_extension.test.cjs
 ```
 
 Node sólo se usa para esos tests sin red, no es una dependencia de producción.
-Estado de v0.18: **127 pruebas específicas, 524 Python y 13 JS aprobadas**. La
+Estado de v0.20: **119 pruebas específicas, 547 Python y 13 JS aprobadas**; el cambio
+real de HyperX quedó aceptado por el usuario el 2026-09-24. v0.19 quedó aceptada y su
+catálogo puede consultarse sin mostrar rutas con `python -m desktop_agent --targets`. La
+aceptación real de v0.18: **127 pruebas específicas, 524 Python y 13 JS aprobadas**. La
 aceptación real de autorización persistente, playlist, canción, pausa, reanudación,
 siguiente, anterior y volumen se completó el 2026-09-16; la audibilidad y la vista
 abierta siguen dependiendo de observación humana.
@@ -783,13 +802,18 @@ tests/
   La aceptación simulada está aprobada; la apertura visible queda como prueba manual.
 - **v0.17 — Uso cotidiano y auditoría:** configuración protegida, micrófono elegible,
   atajos opt-in, envío automático opcional y correcciones del recorrido de YouTube,
-  cancelación y Riot Client. Implementación y pruebas locales completadas; voz real y
-  recorrido completo con extensión siguen como checkpoint del usuario.
+  cancelación y Riot Client. El recorrido real con la extensión quedó aprobado el
+  2026-09-25; voz, cancelación y atajos siguen como checkpoint del usuario.
 - **v0.18 — Control oficial de Spotify:** implementación local completada con OAuth
   PKCE, token renovable cifrado, dispositivo explícito, búsqueda/reproducción y
   controles verificados. La aceptación real quedó aprobada con la cuenta y el
   dispositivo del usuario; las pruebas automatizadas continúan sin realizar red ni
   abrir Spotify.
+- **v0.19 — Proyectos y documentos aprobados:** registro local explícito desde la
+  GUI y apertura acotada en VS Code. La apertura visible de proyecto y documentación
+  quedó aprobada por el usuario el 2026-09-19.
+- **v0.20 — Volumen por dispositivo de salida:** completada y aceptada el 2026-09-24
+  con Core Audio, coincidencia inequívoca, límite conservador y lectura posterior.
 
 ## Autoría y componentes externos
 

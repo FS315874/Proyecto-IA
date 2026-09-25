@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from desktop_agent.browser_contract import normalize_search_query
+from desktop_agent.approved_targets import normalize_target_name
 from desktop_agent.catalog import SUPPORTED_APPLICATIONS, SUPPORTED_SITES
 from desktop_agent.executor import ActionExecutionError, ActionExecutor
 from desktop_agent.interpretation import (
@@ -21,6 +22,7 @@ from desktop_agent.interpretation import (
     ProposalUsageTrackingError,
 )
 from desktop_agent.models import Action, Intent, RiskLevel, ToolResult
+from desktop_agent.output_audio import validate_output_volume_target
 from desktop_agent.parser import parse_command
 
 PLAN_SCHEMA_VERSION = 1
@@ -35,6 +37,7 @@ _PLAN_SEPARATOR = re.compile(
 class PlanProposalIntent(str, Enum):
     OPEN_URL = "OPEN_URL"
     OPEN_APPLICATION = "OPEN_APPLICATION"
+    OPEN_APPROVED_TARGET = "OPEN_APPROVED_TARGET"
     PLAY_YOUTUBE = "PLAY_YOUTUBE"
     STOP_YOUTUBE = "STOP_YOUTUBE"
     RESUME_YOUTUBE = "RESUME_YOUTUBE"
@@ -46,6 +49,7 @@ class PlanProposalIntent(str, Enum):
     NEXT_SPOTIFY = "NEXT_SPOTIFY"
     PREVIOUS_SPOTIFY = "PREVIOUS_SPOTIFY"
     SET_SPOTIFY_VOLUME = "SET_SPOTIFY_VOLUME"
+    SET_OUTPUT_VOLUME = "SET_OUTPUT_VOLUME"
 
 
 class PlanStepState(str, Enum):
@@ -186,6 +190,18 @@ def _build_action(intent: PlanProposalIntent, target: object) -> Action:
             RiskLevel.SAFE,
             False,
         )
+    if intent is PlanProposalIntent.OPEN_APPROVED_TARGET:
+        try:
+            normalize_target_name(target)
+        except ValueError:
+            raise PlanValidationError("El nombre del destino aprobado no es válido.") from None
+        return Action(
+            Intent.OPEN_APPLICATION,
+            "open_approved_target",
+            {"name": target},
+            RiskLevel.SAFE,
+            False,
+        )
     if intent is PlanProposalIntent.PLAY_YOUTUBE:
         if not isinstance(target, str):
             raise PlanValidationError("La consulta de YouTube no es válida.")
@@ -271,6 +287,20 @@ def _build_action(intent: PlanProposalIntent, target: object) -> Action:
             Intent.MEDIA_PLAYBACK,
             "set_spotify_volume",
             {"percent": target},
+            RiskLevel.SAFE,
+            False,
+        )
+    if intent is PlanProposalIntent.SET_OUTPUT_VOLUME:
+        try:
+            request = validate_output_volume_target(target)
+        except ValueError:
+            raise PlanValidationError(
+                "El volumen de salida del plan no es válido."
+            ) from None
+        return Action(
+            Intent.SYSTEM_CHANGE,
+            "set_output_volume",
+            {"device": request.device, "percent": request.percent},
             RiskLevel.SAFE,
             False,
         )
@@ -507,6 +537,30 @@ class TaskPlanValidator:
                 and set(arguments) == {"name"}
                 and arguments["name"] in SUPPORTED_APPLICATIONS
             )
+        elif action.tool_name == "open_approved_target":
+            valid = (
+                action.intent is Intent.OPEN_APPLICATION
+                and set(arguments) in ({"name"}, {"name", "kind"})
+                and (
+                    "kind" not in arguments
+                    or arguments["kind"] in {"project", "document"}
+                )
+            )
+            if valid:
+                try:
+                    normalize_target_name(arguments["name"])
+                except ValueError:
+                    valid = False
+        elif action.tool_name == "set_output_volume":
+            valid = action.intent is Intent.SYSTEM_CHANGE and set(arguments) == {
+                "device",
+                "percent",
+            }
+            if valid:
+                try:
+                    validate_output_volume_target(arguments)
+                except ValueError:
+                    valid = False
         elif action.tool_name == "play_youtube":
             if (
                 action.intent is not Intent.BROWSER_NAVIGATION

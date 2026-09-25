@@ -134,6 +134,8 @@ class OpenAIProposalProviderTests(unittest.TestCase):
         self.assertIn("pausar", instructions)
         self.assertIn("reanudar", instructions)
         self.assertIn("Nunca conviertas un control", instructions)
+        self.assertIn("abrir Spotify", instructions)
+        self.assertIn("web o navegador", instructions)
         self.assertNotIn("https://", instructions)
 
     def test_extracts_numeric_usage_and_estimates_current_model_cost(self) -> None:
@@ -217,6 +219,7 @@ class OpenAIProposalProviderTests(unittest.TestCase):
             [
                 "OPEN_URL",
                 "OPEN_APPLICATION",
+                "OPEN_APPROVED_TARGET",
                 "PLAY_YOUTUBE",
                 "STOP_YOUTUBE",
                 "RESUME_YOUTUBE",
@@ -228,10 +231,18 @@ class OpenAIProposalProviderTests(unittest.TestCase):
                 "NEXT_SPOTIFY",
                 "PREVIOUS_SPOTIFY",
                 "SET_SPOTIFY_VOLUME",
+                "SET_OUTPUT_VOLUME",
                 "UNSUPPORTED",
             ],
         )
-        self.assertEqual(properties["target"]["type"], ["string", "null"])
+        target_variants = properties["target"]["anyOf"]
+        self.assertEqual(target_variants[0], {"type": "string"})
+        self.assertEqual(target_variants[1], {"type": "null"})
+        self.assertEqual(
+            target_variants[2]["required"],
+            ["device", "percent"],
+        )
+        self.assertIs(target_variants[2]["additionalProperties"], False)
 
     def test_rejects_invalid_command_without_calling_provider(self) -> None:
         provider, responses = provider_with_response(

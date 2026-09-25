@@ -35,8 +35,9 @@ SITE_ALIASES: dict[str, str] = {
     "youtube": "youtube",
     "google": "google",
     "github": "github",
-    "spotify": "spotify",
     "spotify web": "spotify",
+    "spotify navegador": "spotify",
+    "spotify en el navegador": "spotify",
 }
 
 
@@ -124,8 +125,11 @@ APPLICATION_ALIASES: dict[str, str] = {
     "visual studio code": "vscode",
     "calculadora": "calculator",
     "calculator": "calculator",
+    "spotify": "spotify",
     "spotify app": "spotify",
     "spotify escritorio": "spotify",
+    "aplicacion spotify": "spotify",
+    "aplicacion de spotify": "spotify",
     "steam": "steam",
     "voicemeeter": "voicemeeter",
     "voice meeter": "voicemeeter",
